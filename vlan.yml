@@ -1,21 +1,27 @@
 ---
-- name: tao vlan
+- name: tao_vlan
   hosts: all
   gather_facts: no
+  collections:
+    - cisco.ios
 
   tasks:
     - name: Create vlan
-      cisco.ios.ios_vlan:
-        vlan_id: "{{ item.number }}"
-        name: "{{ item.name }}"
-        state: present
-      with_items:
-        - { number: 50, name: "phong 50" }
-        - { number: 51, name: "phong 51" }
-        - { number: 52, name: "phong 52" }
+      cisco.ios.ios_vlans:
+        config:
+          - vlan_id: 50
+            name: "phong_50"
+            state: active
+          - vlan_id: 51
+            name: "phong_51"
+            state: active
+          - vlan_id: 52
+            name: "phong_52"
+            state: active
+        state: merged
 
     - name: Show vlan
-      ios_command:
+      cisco.ios.ios_command:
         commands:
           - show vlan
       register: show_vlan
