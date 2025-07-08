@@ -1,6 +1,6 @@
 ---
 - name: tao_vlan
-  hosts: all
+  hosts: SW1
   gather_facts: no
   collections:
     - cisco.ios
