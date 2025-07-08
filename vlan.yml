@@ -9,14 +9,14 @@
     - name: Create vlan
       cisco.ios.ios_vlans:
         config:
-          - vlan_id: 50
-            name: "phong_50"
+          - vlan_id: 10
+            name: "SALES"
             state: active
-          - vlan_id: 51
-            name: "phong_51"
+          - vlan_id: 20
+            name: "IT"
             state: active
-          - vlan_id: 52
-            name: "phong_52"
+          - vlan_id: 30
+            name: "MANAGER"
             state: active
         state: merged
 
