@@ -3,6 +3,9 @@
   hosts: all
   gather_facts: no
 
+  collections:
+    - cisco.ios
+
   tasks:
     - name: Show ip
       ios_command:
