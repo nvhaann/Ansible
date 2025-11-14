@@ -1,8 +1,0 @@
----
-- name: Test connection from AWX to Windows Server
-  hosts: fileserver
-  gather_facts: no
-
-  tasks:
-    - name: Ping Windows Server
-      ansible.windows.win_ping:
