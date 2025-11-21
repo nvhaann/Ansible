@@ -1,0 +1,32 @@
+---
+- name: Cau hinh Windows Server 2016 lam File Server
+  hosts: fileserver
+  gather_facts: no
+
+  tasks:
+    - name: Cai dat role File Server
+      ansible.windows.win_feature:
+        name: FS-FileServer
+        state: present
+        include_management_tools: yes
+
+    - name: Tao thu muc goc chua cac share
+      ansible.windows.win_file:
+        path: C:\Shares\Public
+        state: directory
+
+    - name: Set ACL cho thu muc (Everyone FullControl)
+      ansible.windows.win_acl:
+        path: C:\Shares\Public
+        user: "Everyone"
+        rights: FullControl
+        type: allow
+        inherit: ContainerInherit, ObjectInherit
+        propagation: None
+
+    - name: Tao share SMB ten Public
+      ansible.windows.win_share:
+        name: Public
+        path: C:\Shares\Public
+        description: "Public share duoc tao bang Ansible AWX"
+        full: "Everyone"
