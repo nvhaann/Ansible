@@ -4,14 +4,18 @@
   gather_facts: no
 
   vars:
+    # Thư mục gốc chứa các share
     share_root: 'C:\CompanyShare'
-    domain_netbios: 'NHAN'   # NetBIOS name của domain
 
+    # NetBIOS domain name (nhan.local -> NHAN)
+    domain_netbios: 'NHAN'
+
+    # Định nghĩa các share
     department_shares:
       - name: Public
         folder: Public
         groups_rw:
-          - 'GG-Users-All'
+          - 'GG-Users-All'      # tất cả user
       - name: IT
         folder: IT
         groups_rw:
@@ -26,51 +30,53 @@
           - 'GG-Dept-Sale'
 
   tasks:
+    # 1. Tạo thư mục gốc
     - name: Ensure root share folder exists
-      ansible.windows.win_file:
+    - ansible.windows.win_file:
         path: '{{ share_root }}'
         state: directory
 
+    # 2. Tạo thư mục con cho từng phòng ban
     - name: Create subfolders for each department
       ansible.windows.win_file:
-        path: '{{ share_root }}\{{ item.folder }}'
+        path: "{{ share_root }}\\{{ item.folder }}"
         state: directory
-      loop: '{{ department_shares }}'
+      loop: "{{ department_shares }}"
 
-    # --- NTFS ACL: cấp quyền Modify cho domain groups ---
+    # 3. Cấp NTFS quyền Modify cho đúng domain group
     - name: Set NTFS ACL for RW groups on each folder
       ansible.windows.win_acl:
-        path: '{{ share_root }}\{{ item.0.folder }}'
-        user: '{{ domain_netbios }}\{{ item.1 }}'
+        path: "{{ share_root }}\\{{ item.0.folder }}"
+        user: "{{ domain_netbios }}\\{{ item.1 }}"
         rights: modify
         type: allow
         state: present
-        inherit: 'ContainerInherit, ObjectInherit'
-        propagation: 'None'
+        inherit: "ContainerInherit, ObjectInherit"
+        propagation: "None"
       loop: "{{ department_shares | subelements('groups_rw') }}"
 
-    # --- Dọn ACL share cũ: xóa Everyone nếu có ---
-    - name: Remove Everyone access from SMB share if exists
+    # 4. Xóa mọi Deny Everyone trên share cũ nếu có
+    - name: Remove Everyone access from existing SMB shares (if any)
       ansible.windows.win_shell: >
         Revoke-SmbShareAccess -Name {{ item.name }}
         -AccountName Everyone -Force -ErrorAction SilentlyContinue
       loop: "{{ department_shares }}"
 
-    # --- Tạo SMB share với domain groups ---
-    - name: Create SMB shares with domain groups
+    # 5. Tạo SMB share và gán Change cho domain group
+    - name: Create / update SMB shares with domain groups
       ansible.windows.win_share:
         name: "{{ item.name }}"
         path: "{{ share_root }}\\{{ item.folder }}"
         description: "{{ item.name }} Department Share"
         state: present
+        # đổi 'GG-Dept-IT' -> 'NHAN\GG-Dept-IT', ...
         change_access: >-
           {{
             item.groups_rw
-            | map('regex_replace','^(.*)$', domain_netbios ~ '\\\\' ~ '\1')
+            | map('regex_replace', '^(.*)$', domain_netbios ~ '\\\\' ~ '\1')
             | list
           }}
         full_access:
           - "{{ domain_netbios }}\\Domain Admins"
           - "BUILTIN\\Administrators"
       loop: "{{ department_shares }}"
-
