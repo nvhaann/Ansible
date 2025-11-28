@@ -1,32 +1,70 @@
 ---
-- name: Cau hinh Windows Server 2016 lam File Server
+- name: Configure Windows File Server shares
   hosts: fileserver
   gather_facts: no
 
-  tasks:
-    - name: Cai dat role File Server
-      ansible.windows.win_feature:
-        name: FS-FileServer
-        state: present
-        include_management_tools: yes
+  vars:
+    # Thư mục gốc chứa các thư mục chia sẻ
+    share_root: 'D:\CompanyShare'
 
-    - name: Tao thu muc goc chua cac share
+    # NetBIOS name của domain (nhan.local -> NHAN)
+    domain_netbios: 'NHAN'
+
+    # Danh sách các share cần tạo
+    department_shares:
+      - name: Public
+        folder: Public
+        groups_rw:
+          - 'GG-User-All'      # mọi user
+      - name: IT
+        folder: IT
+        groups_rw:
+          - 'GG-Dept-IT'
+      - name: HR
+        folder: HR
+        groups_rw:
+          - 'GG-Dept-HR'
+      - name: Sale
+        folder: Sale
+        groups_rw:
+          - 'GG-Dept-Sale'
+
+  tasks:
+    - name: Ensure root share folder exists
       ansible.windows.win_file:
-        path: C:\Shares\Public
+        path: '{{ share_root }}'
         state: directory
 
-    - name: Set ACL cho thu muc (Everyone FullControl)
-      ansible.windows.win_acl:
-        path: C:\Shares\Public
-        user: "Everyone"
-        rights: FullControl
-        type: allow
-        inherit: ContainerInherit, ObjectInherit
-        propagation: None
+    - name: Create subfolders for each department
+      ansible.windows.win_file:
+        path: '{{ share_root }}\{{ item.folder }}'
+        state: directory
+      loop: '{{ department_shares }}'
 
-    - name: Tao share SMB ten Public
+    # NTFS ACL: gán quyền Modify cho các group AD tương ứng
+    - name: Set NTFS ACL for RW groups on each folder
+      ansible.windows.win_acl:
+        path: '{{ share_root }}\{{ item.0.folder }}'
+        user: '{{ domain_netbios }}\{{ item.1 }}'
+        rights: modify
+        type: allow
+        state: present
+        inherit: 'ContainerInherit, ObjectInherit'
+        propagation: 'None'
+      loop: "{{ department_shares | subelements('groups_rw') }}"
+
+    # Tạo SMB share tương ứng cho mỗi thư mục
+    - name: Create SMB shares
       ansible.windows.win_share:
-        name: Public
-        path: C:\Shares\Public
-        description: "Public share duoc tao bang Ansible AWX"
-        full: "Everyone"
+        name: '{{ item.name }}'
+        description: '{{ item.name }} share'
+        path: '{{ share_root }}\{{ item.folder }}'
+        # nhóm có quyền "Change" (Modify) trên share
+        change: "{{ item.groups_rw
+                    | map('regex_replace', '^', domain_netbios ~ '\\\\')
+                    | list }}"
+        full: []   # bạn có thể thêm NHAN\\Domain Admins nếu muốn full control
+        read: []
+        state: present
+      loop: '{{ department_shares }}'
+
