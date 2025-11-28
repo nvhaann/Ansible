@@ -15,7 +15,7 @@
       - name: Public
         folder: Public
         groups_rw:
-          - 'GG-User-All'      # mọi user
+          - 'GG-Users-All'      # mọi user
       - name: IT
         folder: IT
         groups_rw:
