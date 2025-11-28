@@ -55,16 +55,11 @@
 
     # Tạo SMB share tương ứng cho mỗi thư mục
     - name: Create SMB shares
-      ansible.windows.win_share:
-        name: '{{ item.name }}'
-        description: '{{ item.name }} share'
-        path: '{{ share_root }}\{{ item.folder }}'
-        # nhóm có quyền "Change" (Modify) trên share
-        change: "{{ item.groups_rw
-                    | map('regex_replace', '^', domain_netbios ~ '\\\\')
-                    | list }}"
-        full: []   # bạn có thể thêm NHAN\\Domain Admins nếu muốn full control
-        read: []
+      win_share:
+        name: "{{ item.name }}"
+        path: "{{ share_root }}\\{{ item.folder }}"
+        change_access: "{{ item.groups_rw | join(',') }}"
+        description: "{{ item.name }} Department Share"
         state: present
-      loop: '{{ department_shares }}'
+      loop: "{{ department_shares }}"
 
