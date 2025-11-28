@@ -4,18 +4,14 @@
   gather_facts: no
 
   vars:
-    # Thư mục gốc chứa các thư mục chia sẻ
     share_root: 'C:\CompanyShare'
+    domain_netbios: 'NHAN'   # NetBIOS name của domain
 
-    # NetBIOS name của domain (nhan.local -> NHAN)
-    domain_netbios: 'NHAN'
-
-    # Danh sách các share cần tạo
     department_shares:
       - name: Public
         folder: Public
         groups_rw:
-          - 'GG-Users-All'      # mọi user
+          - 'GG-Users-All'
       - name: IT
         folder: IT
         groups_rw:
@@ -41,7 +37,7 @@
         state: directory
       loop: '{{ department_shares }}'
 
-    # NTFS ACL: gán quyền Modify cho các group AD tương ứng
+    # --- NTFS ACL: cấp quyền Modify cho domain groups ---
     - name: Set NTFS ACL for RW groups on each folder
       ansible.windows.win_acl:
         path: '{{ share_root }}\{{ item.0.folder }}'
@@ -53,13 +49,28 @@
         propagation: 'None'
       loop: "{{ department_shares | subelements('groups_rw') }}"
 
-    # Tạo SMB share tương ứng cho mỗi thư mục
-    - name: Create SMB shares
-      win_share:
-        name: "{{ item.name }}"
-        path: "{{ share_root }}\\{{ item.folder }}"
-        change_access: "{{ item.groups_rw | join(',') }}"
-        description: "{{ item.name }} Department Share"
-        state: present
+    # --- Dọn ACL share cũ: xóa Everyone nếu có ---
+    - name: Remove Everyone access from SMB share if exists
+      ansible.windows.win_shell: >
+        Revoke-SmbShareAccess -Name {{ item.name }}
+        -AccountName Everyone -Force -ErrorAction SilentlyContinue
       loop: "{{ department_shares }}"
 
+    # --- Tạo SMB share với domain groups ---
+    - name: Create SMB shares with domain groups
+      ansible.windows.win_share:
+        name: "{{ item.name }}"
+        path: "{{ share_root }}\{{ item.folder }}"
+        description: "{{ item.name }} Department Share"
+        state: present
+        # đổi groups_rw -> danh sách 'NHAN\GroupName'
+        change_access: >-
+          {{
+            item.groups_rw
+            | map('regex_replace','^(.*)$', domain_netbios ~ '\\\\' ~ '\1')
+            | list
+          }}
+        full_access:
+          - "{{ domain_netbios }}\\Domain Admins"
+          - "BUILTIN\\Administrators"
+      loop: "{{ department_shares }}"
