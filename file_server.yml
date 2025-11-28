@@ -5,7 +5,7 @@
 
   vars:
     # Thư mục gốc chứa các thư mục chia sẻ
-    share_root: 'D:\CompanyShare'
+    share_root: 'C:\CompanyShare'
 
     # NetBIOS name của domain (nhan.local -> NHAN)
     domain_netbios: 'NHAN'
