@@ -85,9 +85,9 @@
       loop: "{{ department_shares | subelements('groups_rw') }}"
 
     ####################################################################
-    # 4. SMB SHARES (Lớp chia sẻ mạng)
+####################################################################
+    # 5. SMB SHARE (Đã sửa lỗi bằng List Comprehension)
     ####################################################################
-    # Sử dụng logic map('format') để sửa lỗi ghép chuỗi gây Deny All cũ
     - name: Create SMB shares with specific domain group access
       ansible.windows.win_share:
         name: "{{ item.name }}"
@@ -95,12 +95,14 @@
         description: "{{ item.name }} Department Share"
         state: present
         
-        # Cấp Full cho Admin
         full_access:
           - "{{ domain_netbios }}\\Domain Admins"
           - "BUILTIN\\Administrators"
 
-        # [FIX LỖI CŨ] Dùng 'format' để ghép chuỗi an toàn: NHAN + \ + GroupName
-        # Logic này sẽ tạo ra list: ['NHAN\GG-Dept-IT', ...] chuẩn xác
-        change_access: "{{ item.groups_rw | map('format', domain_netbios ~ '\\%s') | list }}"
+        # CÁCH SỬA: Dùng vòng lặp trực tiếp để tạo danh sách
+        # Cú pháp: [ 'DOMAIN\' + tên_group cho mỗi group trong danh sách ]
+        change_access: >-
+          {{ 
+            [ domain_netbios + '\\' + group_name for group_name in item.groups_rw ] 
+          }}
       loop: "{{ department_shares }}"
