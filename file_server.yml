@@ -1,53 +1,79 @@
 ---
-- name: Configure Windows File Server shares
+- name: Configure Windows File Server shares & NTFS (Secure & Standard)
   hosts: fileserver
   gather_facts: no
 
   vars:
     share_root: 'C:\CompanyShare'
-    domain_netbios: 'NHAN'
+    domain_netbios: 'NHAN' # Đảm bảo đúng NetBIOS name của domain
 
     department_shares:
       - name: Public
         folder: Public
-        groups_rw:
-          - 'GG-Users-All'
+        groups_rw: ['GG-Users-All']
       - name: IT
         folder: IT
-        groups_rw:
-          - 'GG-Dept-IT'
+        groups_rw: ['GG-Dept-IT']
       - name: HR
         folder: HR
-        groups_rw:
-          - 'GG-Dept-HR'
+        groups_rw: ['GG-Dept-HR']
       - name: Sale
         folder: Sale
-        groups_rw:
-          - 'GG-Dept-Sale'
+        groups_rw: ['GG-Dept-Sale']
 
   tasks:
-
-    # 0. XÓA SHARE CŨ ĐỂ KHÔNG CÒN "EVERYONE DENY"
-    - name: Remove old SMB share (if exists)
-      ansible.windows.win_shell: >
-        Remove-SmbShare -Name {{ item.name }} -Force -ErrorAction SilentlyContinue
-      loop: "{{ department_shares }}"
-
-    # 1. Tạo thư mục gốc
+    ####################################################################
+    # 1. SETUP ROOT FOLDER & SECURITY HARDENING (Quan trọng)
+    ####################################################################
     - name: Ensure root share folder exists
       ansible.windows.win_file:
-        path: "{{ share_root }}"
+        path: '{{ share_root }}'
         state: directory
 
-    # 2. Tạo thư mục con
+    # [FIX SECURITY] Ngắt quyền thừa kế từ ổ C để tránh user thường xem được folder
+    - name: Disable inheritance on root folder (Convert inherited to explicit)
+      ansible.windows.win_acl_inheritance:
+        path: '{{ share_root }}'
+        state: present
+        reorganize: yes
+
+    # [FIX SECURITY] Xóa nhóm Users (Domain Users) khỏi root folder
+    - name: Remove BUILTIN\Users from root folder to isolate access
+      ansible.windows.win_acl:
+        path: '{{ share_root }}'
+        user: "BUILTIN\\Users"
+        state: absent
+        type: allow
+        rights: readAndExecute
+
+    # Đảm bảo Domain Admins luôn có Full Control từ gốc (để thừa kế xuống dưới)
+    - name: Ensure Admins have Full Control on Root
+      ansible.windows.win_acl:
+        path: '{{ share_root }}'
+        user: "{{ item }}"
+        rights: full
+        type: allow
+        state: present
+        inherit: "ContainerInherit, ObjectInherit"
+        propagation: "None"
+      loop:
+        - "{{ domain_netbios }}\\Domain Admins"
+        - "BUILTIN\\Administrators"
+
+    ####################################################################
+    # 2. TẠO SUBFOLDERS
+    ####################################################################
     - name: Create subfolders for each department
       ansible.windows.win_file:
         path: "{{ share_root }}\\{{ item.folder }}"
         state: directory
       loop: "{{ department_shares }}"
 
-    # 3. Set NTFS Permission cho đúng group
-    - name: Set NTFS ACL for RW groups
+    ####################################################################
+    # 3. NTFS PERMISSIONS (Lớp bảo mật chính)
+    ####################################################################
+    # Cấp quyền Modify cho đúng group của phòng ban đó
+    - name: Grant Modify NTFS permission to department groups
       ansible.windows.win_acl:
         path: "{{ share_root }}\\{{ item.0.folder }}"
         user: "{{ domain_netbios }}\\{{ item.1 }}"
@@ -58,30 +84,23 @@
         propagation: "None"
       loop: "{{ department_shares | subelements('groups_rw') }}"
 
-    # 4. Set Full cho Domain Admins + Administrators
-    - name: Add Full Access for Admins
-      ansible.windows.win_acl:
-        path: "{{ share_root }}\\{{ item.folder }}"
-        user: "{{ domain_netbios }}\\Domain Admins"
-        rights: full
-        type: allow
-        state: present
-      loop: "{{ department_shares }}"
-
-    # 5. Tạo SMB Share MỚI HOÀN TOÀN (đã xoá cũ)
-    - name: Create SMB share with correct permissions
+    ####################################################################
+    # 4. SMB SHARES (Lớp chia sẻ mạng)
+    ####################################################################
+    # Sử dụng logic map('format') để sửa lỗi ghép chuỗi gây Deny All cũ
+    - name: Create SMB shares with specific domain group access
       ansible.windows.win_share:
         name: "{{ item.name }}"
         path: "{{ share_root }}\\{{ item.folder }}"
+        description: "{{ item.name }} Department Share"
         state: present
+        
+        # Cấp Full cho Admin
         full_access:
           - "{{ domain_netbios }}\\Domain Admins"
           - "BUILTIN\\Administrators"
-        change_access: >-
-          {{
-            item.groups_rw
-            | map('regex_replace', '^(.*)$', domain_netbios ~ '\\\\' ~ '\1')
-            | list
-          }}
-        description: "{{ item.name }} Department Share"
+
+        # [FIX LỖI CŨ] Dùng 'format' để ghép chuỗi an toàn: NHAN + \ + GroupName
+        # Logic này sẽ tạo ra list: ['NHAN\GG-Dept-IT', ...] chuẩn xác
+        change_access: "{{ item.groups_rw | map('format', domain_netbios ~ '\\%s') | list }}"
       loop: "{{ department_shares }}"
