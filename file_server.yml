@@ -1,11 +1,10 @@
 ---
-- name: Configure Windows File Server shares & NTFS (chuẩn AD)
+- name: Configure Windows File Server shares
   hosts: fileserver
   gather_facts: no
 
   vars:
     share_root: 'C:\CompanyShare'
-    # NetBIOS của domain nhan.local
     domain_netbios: 'NHAN'
 
     department_shares:
@@ -27,38 +26,28 @@
           - 'GG-Dept-Sale'
 
   tasks:
-    ####################################################################
-    # 1. Tạo thư mục gốc + thư mục con
-    ####################################################################
+
+    # 0. XÓA SHARE CŨ ĐỂ KHÔNG CÒN "EVERYONE DENY"
+    - name: Remove old SMB share (if exists)
+      ansible.windows.win_shell: >
+        Remove-SmbShare -Name {{ item.name }} -Force -ErrorAction SilentlyContinue
+      loop: "{{ department_shares }}"
+
+    # 1. Tạo thư mục gốc
     - name: Ensure root share folder exists
       ansible.windows.win_file:
-        path: '{{ share_root }}'
+        path: "{{ share_root }}"
         state: directory
 
+    # 2. Tạo thư mục con
     - name: Create subfolders for each department
       ansible.windows.win_file:
         path: "{{ share_root }}\\{{ item.folder }}"
         state: directory
       loop: "{{ department_shares }}"
 
-    ####################################################################
-    # 2. NTFS: Domain Admins Full Control trên tất cả thư mục con
-    ####################################################################
-    - name: Ensure Domain Admins have Full NTFS on each department folder
-      ansible.windows.win_acl:
-        path: "{{ share_root }}\\{{ item.folder }}"
-        user: "{{ domain_netbios }}\\Domain Admins"
-        rights: full
-        type: allow
-        state: present
-        inherit: "ContainerInherit, ObjectInherit"
-        propagation: "None"
-      loop: "{{ department_shares }}"
-
-    ####################################################################
-    # 3. NTFS: Group phòng ban có Modify trên thư mục của mình
-    ####################################################################
-    - name: Ensure RW group has Modify NTFS on its folder
+    # 3. Set NTFS Permission cho đúng group
+    - name: Set NTFS ACL for RW groups
       ansible.windows.win_acl:
         path: "{{ share_root }}\\{{ item.0.folder }}"
         user: "{{ domain_netbios }}\\{{ item.1 }}"
@@ -69,35 +58,30 @@
         propagation: "None"
       loop: "{{ department_shares | subelements('groups_rw') }}"
 
-    ####################################################################
-    # 4. SMB: Bỏ Everyone (nếu còn) để khỏi lệch với chuẩn
-    ####################################################################
-    - name: Remove Everyone access from existing SMB shares (if present)
-      ansible.windows.win_shell: >
-        Revoke-SmbShareAccess -Name {{ item.name }}
-        -AccountName Everyone -Force -ErrorAction SilentlyContinue
+    # 4. Set Full cho Domain Admins + Administrators
+    - name: Add Full Access for Admins
+      ansible.windows.win_acl:
+        path: "{{ share_root }}\\{{ item.folder }}"
+        user: "{{ domain_netbios }}\\Domain Admins"
+        rights: full
+        type: allow
+        state: present
       loop: "{{ department_shares }}"
 
-    ####################################################################
-    # 5. SMB: Tạo/cập nhật share với đúng group domain
-    ####################################################################
-    - name: Create / update SMB shares with correct domain groups
+    # 5. Tạo SMB Share MỚI HOÀN TOÀN (đã xoá cũ)
+    - name: Create SMB share with correct permissions
       ansible.windows.win_share:
         name: "{{ item.name }}"
         path: "{{ share_root }}\\{{ item.folder }}"
-        description: "{{ item.name }} Department Share"
         state: present
-
-        # Domain Admins & local Administrators có Full
         full_access:
           - "{{ domain_netbios }}\\Domain Admins"
           - "BUILTIN\\Administrators"
-
-        # Nhóm phòng ban có quyền Change (Modify)
         change_access: >-
           {{
             item.groups_rw
             | map('regex_replace', '^(.*)$', domain_netbios ~ '\\\\' ~ '\1')
             | list
           }}
+        description: "{{ item.name }} Department Share"
       loop: "{{ department_shares }}"
