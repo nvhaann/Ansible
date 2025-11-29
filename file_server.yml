@@ -86,7 +86,8 @@
 
     ####################################################################
 ####################################################################
-    # 5. SMB SHARE (Đã sửa lỗi bằng List Comprehension)
+####################################################################
+    # 5. SMB SHARE (FIXED: Sử dụng product filter - Siêu ổn định)
     ####################################################################
     - name: Create SMB shares with specific domain group access
       ansible.windows.win_share:
@@ -99,10 +100,9 @@
           - "{{ domain_netbios }}\\Domain Admins"
           - "BUILTIN\\Administrators"
 
-        # CÁCH SỬA: Dùng vòng lặp trực tiếp để tạo danh sách
-        # Cú pháp: [ 'DOMAIN\' + tên_group cho mỗi group trong danh sách ]
-        change_access: >-
-          {{ 
-            [ domain_netbios + '\\' + group_name for group_name in item.groups_rw ] 
-          }}
+        # GIẢI THÍCH:
+        # 1. [domain_netbios] | product(item.groups_rw) -> Tạo các cặp ('NHAN', 'GG-IT')
+        # 2. map('join', '\\') -> Nối cặp đó bằng dấu \ -> 'NHAN\GG-IT'
+        # 3. list -> Chuyển kết quả về dạng danh sách
+        change_access: "{{ [domain_netbios] | product(item.groups_rw) | map('join', '\\') | list }}"
       loop: "{{ department_shares }}"
