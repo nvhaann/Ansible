@@ -1,0 +1,79 @@
+---
+- name: Deploy Basic Apache Web Server + Trang chào mừng đồ án
+  hosts: all
+  become: yes
+  vars:
+    student_name: "Nguyễn Văn Nhân"
+    student_id: "28219143282"             
+
+  tasks:
+    - name: Update và upgrade hệ thống
+      apt:
+        update_cache: yes
+        upgrade: dist
+        autoremove: yes
+
+    - name: Cài Apache2 và các tool cần thiết
+      apt:
+        name:
+          - apache2
+          - ufw
+          - curl
+        state: present
+
+    - name: Khởi động và bật Apache
+      systemd:
+        name: apache2
+        state: started
+        enabled: yes
+
+    - name: Mở port 80 và 443 trên UFW
+      ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      loop:
+        - 80
+        - 443
+
+    - name: Bật UFW
+      ufw:
+        state: enabled
+        policy: deny
+        logging: "on"
+
+    - name: Tạo thư mục intranet (sẵn sàng cho bước sau)
+      file:
+        path: /var/www/intranet
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: "0755"
+
+    - name: Trang chủ đồ án đẹp lung linh
+      copy:
+        content: |
+          <!DOCTYPE html>
+          <html lang="vi"><head><meta charset="UTF-8"><title>NHAN Corp - Đồ án Ansible</title>
+          <style>body{font-family:Segoe UI,Arial;background:#f0f8ff;text-align:center;padding-top:8%;}
+          h1{color:#0066cc;} .box{background:white;margin:30px auto;padding:30px;width:600px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.1);}</style>
+          </head><body>
+          <div class="box">
+            <h1>NHAN CORPORATION</h1>
+            <h2>Web Server đã được triển khai 100% bằng Ansible AWX</h2>
+            <p><b>Sinh viên:</b> {{ student_name }}<br>
+               <b>MSSV:</b> {{ student_id }}</p>
+            <hr>
+            <p>Truy cập Intranet: <a href="http://intranet.nhan.local">intranet.nhan.local</a></p>
+            <p>IP: 192.168.60.100</p>
+          </div>
+          </body></html>
+        dest: /var/www/html/index.html
+        mode: "0644"
+      notify: reload apache2
+
+  handlers:
+    - name: reload apache2
+      service:
+        name: apache2
+        state: reloaded
