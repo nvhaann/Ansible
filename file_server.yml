@@ -1,5 +1,5 @@
 ---
-- name: Configure Windows File Server shares (FIXED & STABLE)
+- name: Configure SMB Shares via Native PowerShell (Manual Method)
   hosts: fileserver
   gather_facts: no
 
@@ -7,67 +7,34 @@
     share_root: 'C:\CompanyShare'
     domain_netbios: 'NHAN'
 
-    # SỬA LỖI TẠI ĐÂY:
-    # Khai báo luôn "DOMAIN\GROUP" ở đây. 
-    # Việc này giúp Ansible không phải tính toán cộng chuỗi phức tạp ở bên dưới.
+    # Giữ nguyên cấu trúc biến đơn giản của bạn
     department_shares:
       - name: Public
         folder: Public
-        groups_rw: 
-          - 'NHAN\GG-Users-All'
+        groups_rw: ['NHAN\GG-Users-All']
       - name: IT
         folder: IT
-        groups_rw: 
-          - 'NHAN\GG-Dept-IT'
+        groups_rw: ['NHAN\GG-Dept-IT']
       - name: HR
         folder: HR
-        groups_rw: 
-          - 'NHAN\GG-Dept-HR'
+        groups_rw: ['NHAN\GG-Dept-HR']
       - name: Sale
         folder: Sale
-        groups_rw: 
-          - 'NHAN\GG-Dept-Sale'
+        groups_rw: ['NHAN\GG-Dept-Sale']
 
   tasks:
-    # 0. XÓA SHARE CŨ (Dùng module win_share chuẩn hơn win_shell)
-    # Bước này cực quan trọng để xóa quyền "Everyone Deny" do lần chạy lỗi trước để lại
-    - name: Remove old SMB share to clear bad permissions
-      ansible.windows.win_share:
-        name: "{{ item.name }}"
-        state: absent
-      loop: "{{ department_shares }}"
-
-    # 1. Tạo thư mục gốc
-    - name: Ensure root share folder exists
-      ansible.windows.win_file:
-        path: "{{ share_root }}"
-        state: directory
-
-    # 2. Tạo thư mục con
-    - name: Create subfolders
+    # 1. Tạo thư mục gốc và thư mục con (Phần này win_file làm tốt, giữ lại)
+    - name: Ensure folders exist
       ansible.windows.win_file:
         path: "{{ share_root }}\\{{ item.folder }}"
         state: directory
       loop: "{{ department_shares }}"
 
-    # 3. NTFS: Domain Admins Full Control (Kế thừa từ gốc hoặc set riêng)
-    - name: Set Full NTFS for Admins
-      ansible.windows.win_acl:
-        path: "{{ share_root }}\\{{ item.folder }}"
-        user: "{{ domain_netbios }}\\Domain Admins"
-        rights: full
-        type: allow
-        state: present
-        inherit: "ContainerInherit, ObjectInherit"
-        propagation: "None"
-      loop: "{{ department_shares }}"
-
-    # 4. NTFS: Group phòng ban Modify
-    # Vì item.1 bây giờ là "NHAN\GG-...", ta dùng trực tiếp không cần ghép chuỗi
-    - name: Set Modify NTFS for RW groups
+    # 2. Setup NTFS (Phần này bạn đã chạy ổn, giữ lại cho bảo mật)
+    - name: Set NTFS Permissions (Modify for Groups)
       ansible.windows.win_acl:
         path: "{{ share_root }}\\{{ item.0.folder }}"
-        user: "{{ item.1 }}" 
+        user: "{{ item.1 }}"
         rights: modify
         type: allow
         state: present
@@ -75,22 +42,27 @@
         propagation: "None"
       loop: "{{ department_shares | subelements('groups_rw') }}"
 
-    # 5. SMB SHARE (ĐÃ SỬA LỖI)
-    # Code bây giờ rất sạch, chỉ việc lấy danh sách groups_rw đắp vào.
-    - name: Create SMB share with correct permissions
-      ansible.windows.win_share:
-        name: "{{ item.name }}"
-        path: "{{ share_root }}\\{{ item.folder }}"
-        state: present
-        description: "{{ item.name }} Department Share"
+    # 3. Setup SMB bằng PowerShell (THAY THẾ win_share)
+    # Đây chính là cách "làm thủ công" nhưng được tự động hóa
+    - name: Force Re-create SMB Share using PowerShell
+      ansible.windows.win_shell: |
+        $ShareName = "{{ item.name }}"
+        $Path = "{{ share_root }}\{{ item.folder }}"
         
-        full_access:
-          - "{{ domain_netbios }}\\Domain Admins"
-          - "BUILTIN\\Administrators"
+        # Danh sách Admin (Full Control)
+        $FullUsers = @("{{ domain_netbios }}\Domain Admins", "BUILTIN\Administrators")
         
-        # CHÍNH LÀ CHỖ NÀY: Không còn regex, không còn map, không thể sai được nữa.
-        change_access: "{{ item.groups_rw }}"
-        
-        # Đảm bảo không ai khác được quyền đọc (Xóa Everyone)
-        read_access: []
+        # Danh sách Group (Change Access) - Lấy từ biến Ansible đưa vào
+        $ChangeUsers = @("{{ item.groups_rw | join('","') }}")
+
+        # BƯỚC 1: Xóa Share cũ thẳng tay (nếu có)
+        if (Get-SmbShare -Name $ShareName -ErrorAction SilentlyContinue) {
+            Remove-SmbShare -Name $ShareName -Force
+        }
+
+        # BƯỚC 2: Tạo Share mới tinh với đúng quyền (Clean Install)
+        # Lệnh này tương đương việc bạn click chuột chọn quyền thủ công
+        New-SmbShare -Name $ShareName -Path $Path -FullAccess $FullUsers -ChangeAccess $ChangeUsers -Description "$ShareName Department Share"
+
       loop: "{{ department_shares }}"
+      # register: debug_output  <-- Bật cái này nếu muốn xem log chi tiết
