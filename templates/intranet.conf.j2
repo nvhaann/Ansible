@@ -3,18 +3,21 @@
     ServerAlias intranet
     DocumentRoot /var/www/intranet
 
-    <Directory /var/www/intranet>
-        Options Indexes FollowSymLinks
-        AllowOverride None
-        Require all granted
+<Directory /var/www/intranet>
+    Options Indexes FollowSymLinks
+    AllowOverride None
+    Require all granted
 
-        AuthType GSSAPI
-        AuthName "NHAN Corporation - Kerberos SSO"
-        GssapiCredStore keytab:/etc/apache2/webserver.keytab
-        GssapiAllowedMech krb5
-        GssapiNegotiateOnce On
-        GssapiBasicAuth On
-        GssapiUseStandardEnvVars On
-        Require valid-user
-    </Directory>
+    AuthType GSSAPI
+    AuthName "NHAN Corporation - Kerberos SSO"
+    
+    GssapiCredStore keytab:/etc/apache2/webserver.keytab
+    GssapiAllowedMech krb5
+    GssapiNegotiateOnce On
+    GssapiBasicAuth On
+    GssapiLocalName On
+    GssapiUseStandardEnvVars On
+
+    Require valid-user
+</Directory>
 </VirtualHost>
