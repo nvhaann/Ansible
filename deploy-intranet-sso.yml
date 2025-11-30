@@ -4,9 +4,9 @@
   become: yes
 
   tasks:
-    - name: Cài libapache2-mod-auth-kerb
+    - name: Cài libapache2-mod-auth-gssapi
       apt:
-        name: libapache2-mod-auth-kerb
+        name: libapache2-mod-auth-gssapi
         state: present
 
     - name: Copy keytab vào server
