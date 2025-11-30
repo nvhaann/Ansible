@@ -27,20 +27,14 @@
         state: started
         enabled: yes
 
-    - name: Mở port 80 và 443 trên UFW
-      ufw:
-        rule: allow
-        port: "{{ item }}"
-        proto: tcp
-      loop:
-        - 80
-        - 443
-
-    - name: Bật UFW
-      ufw:
-        state: enabled
-        policy: deny
-        logging: "on"
+    - name: Cài và mở port UFW (siêu ổn định, không lỗi)
+      shell: |
+        apt install ufw -y && \
+        ufw allow 80/tcp && \
+        ufw allow 443/tcp && \
+        (ufw status | grep -q "Status: active") || echo "y" | ufw enable
+      args:
+        creates: /lib/ufw/ufw-init
 
     - name: Tạo thư mục intranet (sẵn sàng cho bước sau)
       file:
