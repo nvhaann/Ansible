@@ -10,13 +10,12 @@
 
     AuthType GSSAPI
     AuthName "NHAN Corporation - Kerberos SSO"
-    
     GssapiCredStore keytab:/etc/apache2/webserver.keytab
     GssapiAllowedMech krb5
     GssapiNegotiateOnce On
     GssapiBasicAuth On
     GssapiLocalName On
-    GssapiUseStandardEnvVar On
+    SetEnv REMOTE_USER %{GSS_NAME}
 
     Require valid-user
 </Directory>
