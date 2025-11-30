@@ -57,10 +57,13 @@
         dest: /etc/apache2/sites-available/intranet.conf
       notify: reload apache2
 
-    - name: Kích hoạt site và module
+    - name: Kích hoạt site và module đúng tên mới (Ubuntu 22.04+)
       shell: |
         a2ensite intranet.conf
-        a2enmod auth_kerb
+        a2enmod auth_gssapi
+        systemctl reload apache2
+      args:
+        creates: /etc/apache2/sites-enabled/intranet.conf
       notify: reload apache2
 
   handlers:
