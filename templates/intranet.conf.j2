@@ -8,16 +8,11 @@
         AllowOverride None
         Require all granted
 
-        AuthType Kerberos
-        AuthName "Đăng nhập bằng tài khoản công ty"
-        KrbMethodNegotiate On
-        KrbMethodK5Passwd Off
-        KrbServiceName HTTP/webserver.nhan.local@NHAN.LOCAL
-        KrbAuthRealms NHAN.LOCAL
-        Krb5KeyTab /etc/apache2/webserver.keytab
+        AuthType GSSAPI
+        AuthName "NHAN Corporation - Kerberos SSO"
+        GssapiCredStore keytab:/etc/apache2/webserver.keytab
+        GssapiAllowedMech krb5
+        GssapiNegotiateOnce On
         Require valid-user
     </Directory>
-
-    ErrorLog ${APACHE_LOG_DIR}/intranet_error.log
-    CustomLog ${APACHE_LOG_DIR}/intranet_access.log combined
 </VirtualHost>
