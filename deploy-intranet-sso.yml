@@ -1,0 +1,70 @@
+---
+- name: Deploy Intranet Portal + Kerberos SSO (nhan.local)
+  hosts: webserver
+  become: yes
+
+  tasks:
+    - name: Cài libapache2-mod-auth-kerb
+      apt:
+        name: libapache2-mod-auth-kerb
+        state: present
+
+    - name: Copy keytab vào server
+      copy:
+        src: files/webserver.keytab
+        dest: /etc/apache2/webserver.keytab
+        owner: root
+        group: www-data
+        mode: '0640'
+
+    - name: Tạo thư mục intranet nếu chưa có
+      file:
+        path: /var/www/intranet
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: '0755'
+
+    - name: Trang intranet hiển thị đúng quyền phòng ban
+      copy:
+        content: |
+          <?php
+          $user = $_SERVER['REMOTE_USER'] ?? 'Khách';
+          $user = explode('@', $user)[0];
+          echo "<h1 style='text-align:center;color:#0066cc;margin-top:80px'>NHAN CORPORATION</h1>";
+          echo "<h2 style='text-align:center'>Xin chào <b>$user</b>!</h2>";
+          $map = [
+            'GG-Dept-HR'       => 'HR',
+            'GG-Dept-IT'       => 'IT',
+            'GG-Dept-Sale'     => 'Sale',
+            'GG-User-All'=> 'Public'
+          ];
+          echo "<h3>Thư mục bạn được phép truy cập:</h3><ul style='font-size:1.5em;line-height:2.5em'>";
+          foreach ($map as $group => $folder) {
+            if (shell_exec("id '$user' 2>/dev/null | grep -q '$group' && echo yes")) {
+              echo "<li><a href='\\\\\\\\192.168.60.101\\\\$folder' target='_blank'>$folder</a></li>";
+            }
+          }
+          echo "</ul>";
+          ?>
+        dest: /var/www/intranet/index.php
+        mode: '0644'
+      notify: reload apache2
+
+    - name: Cấu hình VirtualHost Kerberos
+      template:
+        src: templates/intranet.conf.j2
+        dest: /etc/apache2/sites-available/intranet.conf
+      notify: reload apache2
+
+    - name: Kích hoạt site và module
+      shell: |
+        a2ensite intranet.conf
+        a2enmod auth_kerb
+      notify: reload apache2
+
+  handlers:
+    - name: reload apache2
+      service:
+        name: apache2
+        state: reloaded
