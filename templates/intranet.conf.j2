@@ -1,22 +1,26 @@
 <VirtualHost *:80>
     ServerName intranet.nhan.local
-    ServerAlias intranet
     DocumentRoot /var/www/intranet
 
-<Directory /var/www/intranet>
-    Options Indexes FollowSymLinks
-    AllowOverride None
-    Require all granted
+    <Directory /var/www/intranet>
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
 
-    AuthType GSSAPI
-    AuthName "NHAN Corporation - Kerberos SSO"
-    GssapiCredStore keytab:/etc/apache2/webserver.keytab
-    GssapiAllowedMech krb5
-    GssapiNegotiateOnce On
-    GssapiBasicAuth On
-    GssapiLocalName On
-    SetEnv REMOTE_USER %{GSS_NAME}
+        AuthType GSSAPI
+        AuthName "NHAN Corporation Kerberos SSO"
+        GssapiCredStore keytab:{{ keytab_path }}
+        GssapiLocalName On
+        GssapiBasicAuth Off
 
-    Require valid-user
-</Directory>
+        # Bắt buộc xác thực Kerberos
+        Require valid-user
+
+        # Đưa REMOTE_USER vào PHP (rất quan trọng!)
+        RewriteEngine On
+        RewriteRule .* - [E=REMOTE_USER:%{LA-U:REMOTE_USER}]
+    </Directory>
+
+    ErrorLog ${APACHE_LOG_DIR}/intranet-error.log
+    CustomLog ${APACHE_LOG_DIR}/intranet-access.log combined
 </VirtualHost>
