@@ -114,22 +114,22 @@
         mode: '0644'
       notify: restart apache2
 
-    - name: Deploy VirtualHost chuẩn mod_auth_gssapi (intranet.nhan.local.conf)
+    - name: Deploy VirtualHost chuẩn mod_auth_gssapi (intranet.conf)
       template:
-        src: templates/intranet.nhan.local.conf.j2
-        dest: /etc/apache2/sites-available/intranet.nhan.local.conf
+        src: templates/intranet.conf.j2
+        dest: /etc/apache2/sites-available/intranet.conf
         mode: '0644'
       notify: restart apache2
 
     - name: Kích hoạt site + module + restart Apache
       shell: |
         a2dissite 000-default.conf || true
-        a2ensite intranet.nhan.local.conf
+        a2ensite intranet.conf
         a2enmod auth_gssapi
         a2enmod rewrite
         systemctl restart apache2
       args:
-        creates: /etc/apache2/sites-enabled/intranet.nhan.local.conf
+        creates: /etc/apache2/sites-enabled/intranet.conf
 
   handlers:
     - name: restart apache2
