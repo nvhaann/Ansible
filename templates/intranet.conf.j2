@@ -1,26 +1,27 @@
 <VirtualHost *:80>
-    ServerName intranet.nhan.local
-    DocumentRoot /var/www/intranet
+              ServerName intranet.nhan.local
+              DocumentRoot /var/www/intranet
 
-    <Directory /var/www/intranet>
-        Options Indexes FollowSymLinks
-        AllowOverride All
-        Require all granted
+              <Directory /var/www/intranet>
+                  Options Indexes FollowSymLinks
+                  AllowOverride All
+                  
+                  # [QUAN TRỌNG] Đã xóa dòng 'Require all granted' để bắt buộc xác thực
+                  
+                  AuthType GSSAPI
+                  AuthName "NHAN Corporation Kerberos SSO"
+                  GssapiCredStore keytab:{{ keytab_path }}
+                  GssapiLocalName On
+                  GssapiBasicAuth Off
 
-        AuthType GSSAPI
-        AuthName "NHAN Corporation Kerberos SSO"
-        GssapiCredStore keytab:{{ keytab_path }}
-        GssapiLocalName On
-        GssapiBasicAuth Off
+                  # Bắt buộc phải có vé Kerberos mới được vào
+                  Require valid-user
+                  
+                  # Đưa REMOTE_USER vào PHP
+                  RewriteEngine On
+                  RewriteRule .* - [E=REMOTE_USER:%{LA-U:REMOTE_USER}]
+              </Directory>
 
-        # Bắt buộc xác thực Kerberos
-        Require valid-user
-
-        # Đưa REMOTE_USER vào PHP (rất quan trọng!)
-        RewriteEngine On
-        RewriteRule .* - [E=REMOTE_USER:%{LA-U:REMOTE_USER}]
-    </Directory>
-
-    ErrorLog ${APACHE_LOG_DIR}/intranet-error.log
-    CustomLog ${APACHE_LOG_DIR}/intranet-access.log combined
-</VirtualHost>
+              ErrorLog ${APACHE_LOG_DIR}/intranet-error.log
+              CustomLog ${APACHE_LOG_DIR}/intranet-access.log combined
+          </VirtualHost>
