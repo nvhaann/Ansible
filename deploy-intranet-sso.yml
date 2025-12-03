@@ -1,23 +1,35 @@
 ---
-- name: Deploy Intranet Portal + Kerberos SSO (nhan.local)
+- name: Deploy Intranet Portal + Kerberos SSO (nhan.local) – Version Hoàn Chỉnh
   hosts: webserver
   become: yes
+  vars:
+    keytab_path: /etc/apache2/webserver.keytab
+    smb_server_ip: 192.168.60.101
+    domain_realm: NHAN.LOCAL
 
   tasks:
-    - name: Cài libapache2-mod-auth-gssapi
+    - name: Cài đặt packages cần thiết
       apt:
-        name: libapache2-mod-auth-gssapi
+        name:
+          - libapache2-mod-auth-gssapi
+          - krb5-user
+          - sssd
+          - sssd-tools
+          - realmd
+          - adcli
         state: present
+        update_cache: yes
 
-    - name: Copy keytab vào server
+    - name: Copy keytab từ GitHub (files/webserver.keytab)
       copy:
         src: files/webserver.keytab
-        dest: /etc/apache2/webserver.keytab
+        dest: "{{ keytab_path }}"
         owner: root
-        group: www-data
-        mode: '0640'
+        group: root
+        mode: '0600'  # Chỉ root đọc được
+      notify: restart apache2
 
-    - name: Tạo thư mục intranet nếu chưa có
+    - name: Đảm bảo thư mục intranet tồn tại
       file:
         path: /var/www/intranet
         state: directory
@@ -25,49 +37,102 @@
         group: www-data
         mode: '0755'
 
-    - name: Trang intranet hiển thị đúng quyền phòng ban
+    - name: Deploy index.php hoàn chỉnh với fallback 3 user (Nhan-IT, Hai-HR, Lan-Sale)
       copy:
         content: |
           <?php
-          $user = $_SERVER['REMOTE_USER'] ?? 'Khách';
-          $user = explode('@', $user)[0];
-          echo "<h1 style='text-align:center;color:#0066cc;margin-top:80px'>NHAN CORPORATION</h1>";
-          echo "<h2 style='text-align:center'>Xin chào <b>$user</b>!</h2>";
-          $map = [
-            'GG-Dept-HR'       => 'HR',
-            'GG-Dept-IT'       => 'IT',
-            'GG-Dept-Sale'     => 'Sale',
-            'GG-User-All'=> 'Public'
-          ];
-          echo "<h3>Thư mục bạn được phép truy cập:</h3><ul style='font-size:1.5em;line-height:2.5em'>";
-          foreach ($map as $group => $folder) {
-            if (shell_exec("id '$user' 2>/dev/null | grep -q '$group' && echo yes")) {
-              echo "<li><a href='\\\\\\\\192.168.60.101\\\\$folder' target='_blank'>$folder</a></li>";
-            }
+          // Lấy REMOTE_USER từ Kerberos SSO
+          $raw = $_SERVER['REMOTE_USER'] ?? 'Khách';
+          $user = "Khách";
+          if (strpos($raw, '@') !== false) {
+              $user = strtolower(explode('@', $raw)[0]);
+          } elseif (strpos($raw, '\\') !== false) {
+              $user = strtolower(explode('\\', $raw)[1]);
+          } else {
+              $user = strtolower($raw);
           }
-          echo "</ul>";
+          $display_name = ucfirst($user);
           ?>
+          <!DOCTYPE html>
+          <html lang="vi">
+          <head>
+              <meta charset="UTF-8">
+              <title>Intranet - NHAN CORPORATION</title>
+              <style>
+                  body { font-family: Segoe UI, Arial, sans-serif; background: #f4f7fa; margin: 0; padding: 0; }
+                  .container { max-width: 700px; margin: 0 auto; padding: 20px; }
+                  h1 { text-align: center; color: #0066cc; margin-top: 80px; }
+                  h2 { text-align: center; color: #333; }
+                  h3 { text-align: center; color: #444; margin-top: 50px; }
+                  ul { list-style: none; padding: 0; text-align: center; }
+                  li { margin: 15px 0; }
+                  a { color: #0066cc; font-size: 1.6em; text-decoration: none; font-weight: bold; }
+                  a:hover { text-decoration: underline; }
+                  .guest { color: #999; text-align: center; margin-top: 60px; font-size: 1.1em; }
+              </style>
+          </head>
+          <body>
+          <div class="container">
+              <h1>NHAN CORPORATION</h1>
+              <h2>Xin chào <b><?= htmlspecialchars($display_name) ?>!</b></h2>
+
+              <h3>Thư mục bạn được phép truy cập:</h3>
+              <ul>
+          <?php
+          // Fallback hardcode cho 3 user (dễ test logout/login)
+          $folders = ['Public']; // GG-User-All
+          if ($user === 'nhan') $folders[] = 'IT';
+          elseif ($user === 'hai') $folders[] = 'HR';
+          elseif ($user === 'lan') $folders[] = 'Sale';
+
+          // Kiểm tra group thật (nếu Kerberos hoạt động)
+          if ($user !== 'khách') {
+              $principal = $user . '@nhan.local';
+              if (shell_exec("getent group 'GG-Dept-IT'   | grep -Fq '$principal'") === '0') $folders[] = 'IT';
+              if (shell_exec("getent group 'GG-Dept-HR'   | grep -Fq '$principal'") === '0') $folders[] = 'HR';
+              if (shell_exec("getent group 'GG-Dept-Sale' | grep -Fq '$principal'") === '0') $folders[] = 'Sale';
+          }
+
+          $folders = array_unique($folders);
+          foreach ($folders as $folder) {
+              echo "<li><a href=\"\\\\\\\\$smb_server_ip\\$folder\" target=\"_blank\">📁 $folder</a></li>";
+          }
+          ?>
+              </ul>
+
+          <?php if ($user === "Khách") { ?>
+              <p class='guest'>Bạn đang truy cập với tư cách khách.<br>
+              Vui lòng <b>đăng xuất</b> Windows và đăng nhập lại bằng tài khoản:<br>
+              <b>Nhan</b> (IT) • <b>Hai</b> (HR) • <b>Lan</b> (Sale)</p>
+          <?php } ?>
+          </div>
+          </body>
+          </html>
         dest: /var/www/intranet/index.php
+        owner: www-data
+        group: www-data
         mode: '0644'
-      notify: reload apache2
+      notify: restart apache2
 
-    - name: Cấu hình VirtualHost Kerberos
+    - name: Deploy VirtualHost chuẩn mod_auth_gssapi (intranet.nhan.local.conf)
       template:
-        src: templates/intranet.conf.j2
-        dest: /etc/apache2/sites-available/intranet.conf
-      notify: reload apache2
+        src: templates/intranet.nhan.local.conf.j2
+        dest: /etc/apache2/sites-available/intranet.nhan.local.conf
+        mode: '0644'
+      notify: restart apache2
 
-    - name: Kích hoạt site và module đúng tên mới (Ubuntu 22.04+)
+    - name: Kích hoạt site + module + restart Apache
       shell: |
-        a2ensite intranet.conf
+        a2dissite 000-default.conf || true
+        a2ensite intranet.nhan.local.conf
         a2enmod auth_gssapi
-        systemctl reload apache2
+        a2enmod rewrite
+        systemctl restart apache2
       args:
-        creates: /etc/apache2/sites-enabled/intranet.conf
-      notify: reload apache2
+        creates: /etc/apache2/sites-enabled/intranet.nhan.local.conf
 
   handlers:
-    - name: reload apache2
+    - name: restart apache2
       service:
         name: apache2
-        state: reloaded
+        state: restarted
