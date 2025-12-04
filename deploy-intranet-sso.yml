@@ -37,11 +37,10 @@
         group: www-data
         mode: '0755'
 
-    - name: Deploy index.php hoàn chỉnh với fallback 3 user (Nhan-IT, Hai-HR, Lan-Sale)
+- name: Deploy index.php (Version UX: Copy to Clipboard)
       copy:
         content: |
           <?php
-          // Lấy REMOTE_USER từ Kerberos SSO
           $raw = $_SERVER['REMOTE_USER'] ?? 'Khách';
           $user = "Khách";
           if (strpos($raw, '@') !== false) {
@@ -52,6 +51,7 @@
               $user = strtolower($raw);
           }
           $display_name = ucfirst($user);
+          $smb_ip = '192.168.60.101'; // IP File Server của bạn
           ?>
           <!DOCTYPE html>
           <html lang="vi">
@@ -59,60 +59,81 @@
               <meta charset="UTF-8">
               <title>Intranet - NHAN CORPORATION</title>
               <style>
-                  body { font-family: Segoe UI, Arial, sans-serif; background: #f4f7fa; margin: 0; padding: 0; }
-                  .container { max-width: 700px; margin: 0 auto; padding: 20px; }
-                  h1 { text-align: center; color: #0066cc; margin-top: 80px; }
-                  h2 { text-align: center; color: #333; }
-                  h3 { text-align: center; color: #444; margin-top: 50px; }
-                  ul { list-style: none; padding: 0; text-align: center; }
-                  li { margin: 15px 0; }
-                  a { color: #0066cc; font-size: 1.6em; text-decoration: none; font-weight: bold; }
-                  a:hover { text-decoration: underline; }
-                  .guest { color: #999; text-align: center; margin-top: 60px; font-size: 1.1em; }
+                  body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; display: flex; justify-content: center; min-height: 100vh; margin: 0; }
+                  .card { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 100%; max-width: 500px; margin-top: 50px; text-align: center; height: fit-content; }
+                  h1 { color: #1a73e8; margin-bottom: 10px; }
+                  .user-badge { background: #e8f0fe; color: #1a73e8; padding: 5px 15px; border-radius: 20px; font-weight: bold; display: inline-block; margin-bottom: 30px; }
+                  .folder-list { list-style: none; padding: 0; }
+                  .folder-item { background: #fff; border: 1px solid #ddd; margin: 10px 0; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; }
+                  .folder-item:hover { border-color: #1a73e8; background: #f8f9fa; }
+                  .folder-name { font-weight: 600; color: #333; display: flex; align-items: center; gap: 10px; }
+                  .btn-copy { background: #1a73e8; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9em; transition: 0.2s; }
+                  .btn-copy:hover { background: #1557b0; }
+                  .btn-copy:active { transform: scale(0.98); }
+                  .toast { visibility: hidden; min-width: 250px; background-color: #333; color: #fff; text-align: center; border-radius: 4px; padding: 16px; position: fixed; z-index: 1; bottom: 30px; left: 50%; transform: translateX(-50%); font-size: 17px; }
+                  .toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
+                  @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
+                  @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
               </style>
+              <script>
+                  function copyPath(path) {
+                      navigator.clipboard.writeText(path).then(function() {
+                          var x = document.getElementById("toast");
+                          x.className = "toast show";
+                          x.innerText = "Đã copy đường dẫn: " + path;
+                          setTimeout(function(){ x.className = x.className.replace("show", ""); }, 3000);
+                      }, function(err) {
+                          alert('Lỗi copy: ' + err);
+                      });
+                  }
+              </script>
           </head>
           <body>
-          <div class="container">
+          <div class="card">
               <h1>NHAN CORPORATION</h1>
-              <h2>Xin chào <b><?= htmlspecialchars($display_name) ?>!</b></h2>
+              <div class="user-badge">👤 <?= htmlspecialchars($display_name) ?></div>
 
-              <h3>Thư mục bạn được phép truy cập:</h3>
-              <ul>
+              <h3>📂 Kho dữ liệu được phép truy cập</h3>
+              <ul class="folder-list">
           <?php
-          // Fallback hardcode cho 3 user (dễ test logout/login)
-          $folders = ['Public']; // GG-User-All
+          $folders = ['Public'];
+          // Logic check group (giữ nguyên logic cũ của bạn)
           if ($user === 'nhan') $folders[] = 'IT';
           elseif ($user === 'hai') $folders[] = 'HR';
           elseif ($user === 'lan') $folders[] = 'Sale';
 
-          // Kiểm tra group thật (nếu Kerberos hoạt động)
           if ($user !== 'khách') {
               $principal = $user . '@nhan.local';
               if (shell_exec("getent group 'GG-Dept-IT'   | grep -Fq '$principal'") === '0') $folders[] = 'IT';
               if (shell_exec("getent group 'GG-Dept-HR'   | grep -Fq '$principal'") === '0') $folders[] = 'HR';
               if (shell_exec("getent group 'GG-Dept-Sale' | grep -Fq '$principal'") === '0') $folders[] = 'Sale';
           }
-
           $folders = array_unique($folders);
+
           foreach ($folders as $folder) {
-              echo "<li><a href=\"\\\\\\\\$smb_server_ip\\$folder\" target=\"_blank\">📁 $folder</a></li>";
+              // Đường dẫn chuẩn Windows UNC
+              $unc_path = "\\\\$smb_ip\\$folder";
+              // Escape dấu \ cho JS
+              $js_path = "\\\\\\\\$smb_ip\\\\$folder";
+              
+              echo "<li class='folder-item'>
+                      <span class='folder-name'>📁 $folder</span>
+                      <button class='btn-copy' onclick=\"copyPath('$js_path')\">Copy Link</button>
+                    </li>";
           }
           ?>
               </ul>
-
-          <?php if ($user === "Khách") { ?>
-              <p class='guest'>Bạn đang truy cập với tư cách khách.<br>
-              Vui lòng <b>đăng xuất</b> Windows và đăng nhập lại bằng tài khoản:<br>
-              <b>Nhan</b> (IT) • <b>Hai</b> (HR) • <b>Lan</b> (Sale)</p>
-          <?php } ?>
+              <div style="margin-top: 20px; font-size: 0.85em; color: #666;">
+                  *Bấm <b>Copy Link</b> rồi dán vào File Explorer (Win+E) để truy cập.
+              </div>
           </div>
+          <div id="toast" class="toast"></div>
           </body>
           </html>
         dest: /var/www/intranet/index.php
         owner: www-data
         group: www-data
         mode: '0644'
-      notify: restart apache2
 
     - name: Deploy VirtualHost chuẩn mod_auth_gssapi (intranet.conf)
       template:
