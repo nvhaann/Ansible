@@ -37,7 +37,7 @@
         group: www-data
         mode: '0755'
 
-- name: Deploy index.php (Version UX: Copy to Clipboard)
+    - name: Deploy index.php (Version UX: Copy to Clipboard)
       copy:
         content: |
           <?php
