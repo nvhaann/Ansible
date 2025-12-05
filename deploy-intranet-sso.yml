@@ -37,7 +37,7 @@
         group: www-data
         mode: '0755'
 
-    - name: Deploy index.php 
+    - name: "Deploy index.php (Version Final: Fix Copy & Backslash)"
       copy:
         content: |
           <?php
@@ -51,7 +51,7 @@
               $user = strtolower($raw);
           }
           $display_name = ucfirst($user);
-          $smb_ip = '192.168.60.101'; // IP File Server của bạn
+          $smb_ip = '192.168.60.101';
           ?>
           <!DOCTYPE html>
           <html lang="vi">
@@ -76,15 +76,31 @@
                   @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
               </style>
               <script>
-                  function copyPath(path) {
-                      navigator.clipboard.writeText(path).then(function() {
-                          var x = document.getElementById("toast");
-                          x.className = "toast show";
-                          x.innerText = "Đã copy đường dẫn: " + path;
-                          setTimeout(function(){ x.className = x.className.replace("show", ""); }, 3000);
-                      }, function(err) {
-                          alert('Lỗi copy: ' + err);
-                      });
+                  function copyPath(btn) {
+                      // Lấy đường dẫn từ thuộc tính data-path của nút bấm
+                      var text = btn.getAttribute('data-path');
+                      
+                      // Tạo ô input tạm để copy (Input ổn định hơn Textarea)
+                      var tempInput = document.createElement("input");
+                      tempInput.value = text;
+                      document.body.appendChild(tempInput);
+                      tempInput.select();
+                      tempInput.setSelectionRange(0, 99999); // Cho mobile
+
+                      try {
+                          var successful = document.execCommand('copy');
+                          if(successful) {
+                              var x = document.getElementById("toast");
+                              x.className = "toast show";
+                              x.innerText = "Đã copy: " + text;
+                              setTimeout(function(){ x.className = x.className.replace("show", ""); }, 3000);
+                          } else {
+                              alert("Trình duyệt chặn copy. Hãy bôi đen và Ctrl+C thủ công:\n" + text);
+                          }
+                      } catch (err) {
+                          alert("Lỗi: " + err);
+                      }
+                      document.body.removeChild(tempInput);
                   }
               </script>
           </head>
@@ -97,7 +113,6 @@
               <ul class="folder-list">
           <?php
           $folders = ['Public'];
-          // Logic check group (giữ nguyên logic cũ của bạn)
           if ($user === 'nhan') $folders[] = 'IT';
           elseif ($user === 'hai') $folders[] = 'HR';
           elseif ($user === 'lan') $folders[] = 'Sale';
@@ -111,14 +126,13 @@
           $folders = array_unique($folders);
 
           foreach ($folders as $folder) {
-              // Đường dẫn chuẩn Windows UNC
+              // Đường dẫn chuẩn: \\192.168.60.101\Public
+              // Trong PHP string cần escape 1 lần: "\\\\$ip\\$folder"
               $unc_path = "\\\\$smb_ip\\$folder";
-              // Escape dấu \ cho JS
-              $js_path = "\\\\\\\\$smb_ip\\\\$folder";
               
               echo "<li class='folder-item'>
                       <span class='folder-name'>📁 $folder</span>
-                      <button class='btn-copy' onclick=\"copyPath('$js_path')\">Copy Link</button>
+                      <button class='btn-copy' data-path='$unc_path' onclick='copyPath(this)'>Copy Link</button>
                     </li>";
           }
           ?>
@@ -134,6 +148,7 @@
         owner: www-data
         group: www-data
         mode: '0644'
+      notify: restart apache2
 
     - name: Deploy VirtualHost chuẩn mod_auth_gssapi (intranet.conf)
       template:
