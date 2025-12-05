@@ -24,8 +24,8 @@
       copy:
         src: files/webserver.keytab
         dest: "{{ keytab_path }}"
-        owner: root
-        group: root
+        owner: www-data
+        group: www-data
         mode: '0600'  # Chỉ root đọc được
       notify: restart apache2
 
