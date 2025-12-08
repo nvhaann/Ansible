@@ -1,110 +1,118 @@
 ---
-- name: Configure Active Directory & DNS
+- name: Configure AD & DNS (Compatible V3 - PowerShell Native)
   hosts: ad_server
   gather_facts: no
   vars:
     domain_dn: "DC=nhan,DC=local"
     gateway_ip: "192.168.60.1"
-    
-    # Tài khoản Service Account cho SSO (Đang nằm trong CN=Users)
     sso_account: "svc-webserver"
-
-# Danh sách bản ghi DNS "Hạ tầng lõi" (Infrastructure Only)
-    dns_a_records:
-      # 1. Nhóm Web Server (IP .100)
-      - { name: "intranet",  value: "192.168.60.100" } # Quan trọng cho SSO
-      - { name: "web1",      value: "192.168.60.100" } # Tên máy Linux gốc
-      - { name: "webserver", value: "192.168.60.100" } # Alias dễ nhớ
-      
-      # 2. Nhóm Domain Controller (IP .102)
-      - { name: "dc",        value: "192.168.60.102" } # Alias ngắn gọn
-      - { name: "ad-server", value: "192.168.60.102" }
-      - { name: "fileserver", value: "192.168.60.101" }
+    
+    # Danh sách DNS
+    dns_records:
+      - { name: "intranet", value: "192.168.60.100" }
+      - { name: "web1",     value: "192.168.60.100" }
+      - { name: "webserver",value: "192.168.60.100" }
+      - { name: "fileserver",value: "192.168.60.101" }
 
   tasks:
-    # ==================================================================
-    # 1. CẤU HÌNH MẠNG & ROUTING (QUAN TRỌNG CHO INTERNET)
-    # ==================================================================
-    - name: Ensure Default Gateway is Core Switch (192.168.60.1)
+    # -------------------------------------------------------------
+    # 1. CẤU HÌNH MẠNG (Sửa lỗi 'next_hop' thành 'gateway')
+    # -------------------------------------------------------------
+    - name: Ensure Default Gateway is Core Switch
       ansible.windows.win_route:
         destination: 0.0.0.0/0
-        next_hop: "{{ gateway_ip }}"
+        gateway: "{{ gateway_ip }}"  # <-- Đã sửa 'next_hop' thành 'gateway'
         metric: 1
         state: present
-      # Task này sửa lỗi mất mạng nếu Gateway đang trỏ nhầm về .2
 
-    # ==================================================================
-    # 2. CẤU HÌNH DNS SERVER (FORWARDERS & RECORDS)
-    # ==================================================================
-    - name: Configure DNS Forwarders (Google 8.8.8.8 Only)
+    # -------------------------------------------------------------
+    # 2. CẤU HÌNH DNS FORWARDER (PowerShell)
+    # -------------------------------------------------------------
+    - name: Configure DNS Forwarders (Google 8.8.8.8)
       ansible.windows.win_shell: |
         $F = Get-DnsServerForwarder
-        # Nếu thiếu 8.8.8.8 -> Thêm vào
-        If ($F.IPAddress -notcontains "8.8.8.8") { 
-            Set-DnsServerForwarder -IPAddress "8.8.8.8" -PassThru 
-        }
-        # Nếu dư IP rác 192.168.31.2 -> Xóa đi
-        If ($F.IPAddress -contains "192.168.31.2") { 
-            Remove-DnsServerForwarder -IPAddress "192.168.31.2" -Force 
-        }
-      changed_when: false 
+        If ($F.IPAddress -notcontains "8.8.8.8") { Set-DnsServerForwarder -IPAddress "8.8.8.8" -PassThru }
+        If ($F.IPAddress -contains "192.168.31.2") { Remove-DnsServerForwarder -IPAddress "192.168.31.2" -Force }
+      changed_when: false
 
-    - name: Ensure Static DNS A Records exist
+    # -------------------------------------------------------------
+    # 3. QUẢN LÝ DNS RECORDS (Module có sẵn)
+    # -------------------------------------------------------------
+    - name: Ensure DNS Records exist
       ansible.windows.win_dns_record:
         name: "{{ item.name }}"
         zone: "nhan.local"
         type: "A"
         value: "{{ item.value }}"
         state: present
-      loop: "{{ dns_a_records }}"
+      loop: "{{ dns_records }}"
 
-    # ==================================================================
-    # 3. QUẢN LÝ CẤU TRÚC OU
-    # ==================================================================
-    # Bạn đã tạo các OU riêng có tên giống container mặc định (Admins, Computers, Users...)
-    - name: Ensure Custom OUs Structure exists
-      microsoft.ad.ou:
-        name: "{{ item }}"
-        path: "{{ domain_dn }}"
-        state: present
+    # -------------------------------------------------------------
+    # 4. QUẢN LÝ CẤU TRÚC OU (Dùng PowerShell thuần - Không cần Collection)
+    # -------------------------------------------------------------
+    - name: Ensure OUs exist (PowerShell)
+      ansible.windows.win_shell: |
+        $OUName = "{{ item }}"
+        $Path = "{{ domain_dn }}"
+        if (-not (Get-ADOrganizationalUnit -Filter "Name -eq '$OUName'" -SearchBase $Path -ErrorAction SilentlyContinue)) {
+            New-ADOrganizationalUnit -Name $OUName -Path $Path
+            Write-Host "Created"
+        }
+      register: ou_result
+      changed_when: "'Created' in ou_result.stdout"
       loop:
-        - "Admins"     # OU=Admins
-        - "Computers"  # OU=Computers (Khác với CN=Computers mặc định)
-        - "Groups"     # OU=Groups
-        - "Servers"    # OU=Servers
-        - "Users"      # OU=Users (Khác với CN=Users mặc định)
+        - "Admins"
+        - "Computers"
+        - "Groups"
+        - "Servers"
+        - "Users"
 
-    # ==================================================================
-    # 4. QUẢN LÝ GROUPS PHÒNG BAN
-    # ==================================================================
-    - name: Ensure Department Groups exist in OU=Groups
-      microsoft.ad.group:
-        name: "{{ item }}"
-        path: "OU=Groups,{{ domain_dn }}"
-        scope: global
-        category: security
-        state: present
+    # -------------------------------------------------------------
+    # 5. QUẢN LÝ GROUP (PowerShell thuần)
+    # -------------------------------------------------------------
+    - name: Ensure Groups exist (PowerShell)
+      ansible.windows.win_shell: |
+        $GroupName = "{{ item }}"
+        $Path = "OU=Groups,{{ domain_dn }}"
+        if (-not (Get-ADGroup -Filter "Name -eq '$GroupName'" -SearchBase $Path -ErrorAction SilentlyContinue)) {
+            New-ADGroup -Name $GroupName -GroupScope Global -GroupCategory Security -Path $Path
+            Write-Host "Created"
+        }
+      register: group_result
+      changed_when: "'Created' in group_result.stdout"
       loop:
         - "GG-Users-All"
         - "GG-Dept-IT"
         - "GG-Dept-HR"
         - "GG-Dept-Sale"
 
-    # ==================================================================
-    # 5. CẤU HÌNH SERVICE ACCOUNT CHO SSO (QUAN TRỌNG NHẤT)
-    # ==================================================================
-    # User này nằm trong Container mặc định "Users" (CN=Users)
-    - name: Ensure SSO Service Account 'svc-webserver' is Configured Correctly
-      microsoft.ad.user:
-        name: "{{ sso_account }}"
-        # CHÍNH XÁC: Dùng CN=Users vì bạn xác nhận nó nằm trong container mặc định
-        path: "CN=Users,{{ domain_dn }}" 
-        state: present
-        enabled: yes
-        password_never_expires: yes # BẮT BUỘC để Keytab không bị chết
-        description: "Service Account for Apache SSO (Managed by Ansible)"
+    # -------------------------------------------------------------
+    # 6. QUẢN LÝ USER SSO & SPN (PowerShell thuần)
+    # -------------------------------------------------------------
+    - name: Ensure SSO Service Account exists & Configure SPN (PowerShell)
+      ansible.windows.win_shell: |
+        $User = "{{ sso_account }}"
+        $Path = "CN=Users,{{ domain_dn }}" # User svc-webserver của bạn đang ở đây
+        $SPN = "HTTP/intranet.nhan.local"
+
+        # 1. Tạo User nếu chưa có
+        if (-not (Get-ADUser -Filter "SamAccountName -eq '$User'" -ErrorAction SilentlyContinue)) {
+            # Tạo mới với pass mặc định
+            New-ADUser -Name $User -SamAccountName $User -Path $Path -Enabled $true -PasswordNeverExpires $true -AccountPassword (ConvertTo-SecureString "Password@123" -AsPlainText -Force)
+            Write-Host "Created_User"
+        }
+
+        # 2. Kiểm tra và sửa cấu hình (Pass never expires & SPN)
+        $ADUser = Get-ADUser -Identity $User -Properties ServicePrincipalNames, PasswordNeverExpires
         
-        # ĐÂY LÀ CHÌA KHÓA: Ansible tự động gán SPN intranet
-        # Nếu SPN này bị thiếu hoặc sai, Ansible sẽ tự sửa lại cho đúng.
-        service_principal_names:
-          - "HTTP/intranet.nhan.local"
+        if (-not $ADUser.PasswordNeverExpires) {
+            Set-ADUser -Identity $User -PasswordNeverExpires $true
+            Write-Host "Fixed_Pass"
+        }
+
+        if ($ADUser.ServicePrincipalNames -notcontains $SPN) {
+            Set-ADUser -Identity $User -ServicePrincipalNames @{Add=$SPN}
+            Write-Host "Added_SPN"
+        }
+      register: sso_result
+      changed_when: "'Created_User' in sso_result.stdout or 'Added_SPN' in sso_result.stdout"
