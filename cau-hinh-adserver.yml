@@ -1,0 +1,110 @@
+---
+- name: Configure Active Directory & DNS
+  hosts: ad_server
+  gather_facts: no
+  vars:
+    domain_dn: "DC=nhan,DC=local"
+    gateway_ip: "192.168.60.1"
+    
+    # Tài khoản Service Account cho SSO (Đang nằm trong CN=Users)
+    sso_account: "svc-webserver"
+
+# Danh sách bản ghi DNS "Hạ tầng lõi" (Infrastructure Only)
+    dns_a_records:
+      # 1. Nhóm Web Server (IP .100)
+      - { name: "intranet",  value: "192.168.60.100" } # Quan trọng cho SSO
+      - { name: "web1",      value: "192.168.60.100" } # Tên máy Linux gốc
+      - { name: "webserver", value: "192.168.60.100" } # Alias dễ nhớ
+      
+      # 2. Nhóm Domain Controller (IP .102)
+      - { name: "dc",        value: "192.168.60.102" } # Alias ngắn gọn
+      - { name: "ad-server", value: "192.168.60.102" }
+      - { name: "fileserver", value: "192.168.60.101" }
+
+  tasks:
+    # ==================================================================
+    # 1. CẤU HÌNH MẠNG & ROUTING (QUAN TRỌNG CHO INTERNET)
+    # ==================================================================
+    - name: Ensure Default Gateway is Core Switch (192.168.60.1)
+      ansible.windows.win_route:
+        destination: 0.0.0.0/0
+        next_hop: "{{ gateway_ip }}"
+        metric: 1
+        state: present
+      # Task này sửa lỗi mất mạng nếu Gateway đang trỏ nhầm về .2
+
+    # ==================================================================
+    # 2. CẤU HÌNH DNS SERVER (FORWARDERS & RECORDS)
+    # ==================================================================
+    - name: Configure DNS Forwarders (Google 8.8.8.8 Only)
+      ansible.windows.win_shell: |
+        $F = Get-DnsServerForwarder
+        # Nếu thiếu 8.8.8.8 -> Thêm vào
+        If ($F.IPAddress -notcontains "8.8.8.8") { 
+            Set-DnsServerForwarder -IPAddress "8.8.8.8" -PassThru 
+        }
+        # Nếu dư IP rác 192.168.31.2 -> Xóa đi
+        If ($F.IPAddress -contains "192.168.31.2") { 
+            Remove-DnsServerForwarder -IPAddress "192.168.31.2" -Force 
+        }
+      changed_when: false 
+
+    - name: Ensure Static DNS A Records exist
+      ansible.windows.win_dns_record:
+        name: "{{ item.name }}"
+        zone: "nhan.local"
+        type: "A"
+        value: "{{ item.value }}"
+        state: present
+      loop: "{{ dns_a_records }}"
+
+    # ==================================================================
+    # 3. QUẢN LÝ CẤU TRÚC OU
+    # ==================================================================
+    # Bạn đã tạo các OU riêng có tên giống container mặc định (Admins, Computers, Users...)
+    - name: Ensure Custom OUs Structure exists
+      microsoft.ad.ou:
+        name: "{{ item }}"
+        path: "{{ domain_dn }}"
+        state: present
+      loop:
+        - "Admins"     # OU=Admins
+        - "Computers"  # OU=Computers (Khác với CN=Computers mặc định)
+        - "Groups"     # OU=Groups
+        - "Servers"    # OU=Servers
+        - "Users"      # OU=Users (Khác với CN=Users mặc định)
+
+    # ==================================================================
+    # 4. QUẢN LÝ GROUPS PHÒNG BAN
+    # ==================================================================
+    - name: Ensure Department Groups exist in OU=Groups
+      microsoft.ad.group:
+        name: "{{ item }}"
+        path: "OU=Groups,{{ domain_dn }}"
+        scope: global
+        category: security
+        state: present
+      loop:
+        - "GG-Users-All"
+        - "GG-Dept-IT"
+        - "GG-Dept-HR"
+        - "GG-Dept-Sale"
+
+    # ==================================================================
+    # 5. CẤU HÌNH SERVICE ACCOUNT CHO SSO (QUAN TRỌNG NHẤT)
+    # ==================================================================
+    # User này nằm trong Container mặc định "Users" (CN=Users)
+    - name: Ensure SSO Service Account 'svc-webserver' is Configured Correctly
+      microsoft.ad.user:
+        name: "{{ sso_account }}"
+        # CHÍNH XÁC: Dùng CN=Users vì bạn xác nhận nó nằm trong container mặc định
+        path: "CN=Users,{{ domain_dn }}" 
+        state: present
+        enabled: yes
+        password_never_expires: yes # BẮT BUỘC để Keytab không bị chết
+        description: "Service Account for Apache SSO (Managed by Ansible)"
+        
+        # ĐÂY LÀ CHÌA KHÓA: Ansible tự động gán SPN intranet
+        # Nếu SPN này bị thiếu hoặc sai, Ansible sẽ tự sửa lại cho đúng.
+        service_principal_names:
+          - "HTTP/intranet.nhan.local"
