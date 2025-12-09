@@ -63,14 +63,14 @@
     # -------------------------------------------------------------
     - name: Set Legal Notice Caption
       ansible.windows.win_regedit:
-        path: HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+        path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
         name: legalnoticecaption
         data: "Chào mừng đến với {{ company_name }}"
         type: string
 
     - name: Set Legal Notice Text
       ansible.windows.win_regedit:
-        path: HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+        path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
         name: legalnoticetext
         data: "Hệ thống này được giám sát. Vui lòng tuân thủ chính sách bảo mật thông tin."
         type: string
