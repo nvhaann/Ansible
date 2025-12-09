@@ -54,9 +54,6 @@
         letter: P
         path: "{{ fileserver_path }}"
         state: present
-      # Lưu ý: Task này thường chạy dưới context người dùng (become: no) 
-      # hoặc chạy qua Logon Script nếu chạy bằng Admin.
-
     # -------------------------------------------------------------
     # 4. TẠO THÔNG BÁO ĐĂNG NHẬP (LEGAL NOTICE)
     # -------------------------------------------------------------
