@@ -49,11 +49,15 @@
     # -------------------------------------------------------------
     # 3. MAP Ổ ĐĨA MẠNG (Ổ P: PUBLIC)
     # -------------------------------------------------------------
-    - name: Map Public Drive (P:)
-      ansible.windows.win_mapped_drive:  # <-- Dùng module chuẩn này
-        letter: P
-        path: "{{ fileserver_path }}"
-        state: present
+    - name: Create Map Drive Login Script
+      ansible.windows.win_file:
+        path: 'C:\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp\map_drive.bat'
+        state: touch
+
+    - name: Add content to Login Script
+      ansible.windows.win_lineinfile:
+        path: 'C:\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp\map_drive.bat'
+        line: 'if not exist P: net use P: {{ fileserver_path }} /PERSISTENT:YES'
     # -------------------------------------------------------------
     # 4. TẠO THÔNG BÁO ĐĂNG NHẬP (LEGAL NOTICE)
     # -------------------------------------------------------------
