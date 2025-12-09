@@ -55,7 +55,7 @@
         state: touch
 
     - name: Add content to Login Script
-      ansible.windows.win_lineinfile:
+      community.windows.win_lineinfile:
         path: 'C:\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp\map_drive.bat'
         line: 'if not exist P: net use P: {{ fileserver_path }} /PERSISTENT:YES'
     # -------------------------------------------------------------
