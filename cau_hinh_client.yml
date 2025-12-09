@@ -49,12 +49,11 @@
     # -------------------------------------------------------------
     # 3. MAP Ổ ĐĨA MẠNG (Ổ P: PUBLIC)
     # -------------------------------------------------------------
-    - name: Map Public Drive (P:) persistently
-      community.windows.win_mapped_drive:
+    - name: Map Public Drive (P:)
+      ansible.windows.win_mapped_drive:  # <-- Dùng module chuẩn này
         letter: P
         path: "{{ fileserver_path }}"
         state: present
-        persistence: permanent
       # Lưu ý: Task này thường chạy dưới context người dùng (become: no) 
       # hoặc chạy qua Logon Script nếu chạy bằng Admin.
 
