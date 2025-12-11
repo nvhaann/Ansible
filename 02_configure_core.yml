@@ -37,13 +37,13 @@
         config:
           - name: Ethernet0/1
             mode: trunk
-            trunk: { allowed_vlans: 100, native_vlan: 1 }
+            trunk: { allowed_vlans: "100", native_vlan: "1" }
           - name: Ethernet0/2
             mode: trunk
-            trunk: { allowed_vlans: 50,100, native_vlan: 1 }
+            trunk: { allowed_vlans: "50,100", native_vlan: "1" }
           - name: Ethernet0/3
             mode: trunk
-            trunk: { allowed_vlans: 60,100, native_vlan: 1 }
+            trunk: { allowed_vlans: "60,100", native_vlan: "1" }
         state: merged
 
     # 4. CẤU HÌNH IP GATEWAY (SVI)
