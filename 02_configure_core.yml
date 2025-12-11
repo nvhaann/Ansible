@@ -62,11 +62,9 @@
 
     # 5. ĐỊNH TUYẾN
     - name: Set Default Route
-      cisco.ios.ios_static_routes:
-        config:
-          - dest: 0.0.0.0/0
-            next_hops: [{ forward_router_address: 172.16.1.1 }]
-        state: merged
+      cisco.ios.ios_config:
+        lines:
+          - ip route 0.0.0.0 0.0.0.0 172.16.1.1
 
     # [FIX] Tạm ẩn lưu cấu hình để chạy nhanh hơn (Bỏ comment nếu muốn lưu thật)
     # - name: Save Config
