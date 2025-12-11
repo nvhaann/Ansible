@@ -57,7 +57,7 @@
       check_point.mgmt.cp_mgmt_access_rule:
         layer: "Network"
         position:
-          below: "Ansible_Allow_Web"
+          above: "Cleanup rule"
         name: "Ansible_Allow_Internet"
         source:
           - "Net_VLAN50"
