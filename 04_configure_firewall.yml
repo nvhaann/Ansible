@@ -56,7 +56,7 @@
     - name: Rule - Allow Internet Access
       check_point.mgmt.cp_mgmt_access_rule:
         layer: "Network"
-        position: bottom
+        position:
           below: "Ansible_Allow_Web"
         name: "Ansible_Allow_Internet"
         source:
