@@ -1,21 +1,28 @@
 ---
-- name: LAYER 2 - Create VLAN Database
-  hosts: switches  # Chạy trên Group tổng (Chứa cả Core và 3 Access)
+- name: LAYER 2 - Create VLAN Database (Legacy Mode)
+  hosts: switches
   gather_facts: no
   connection: network_cli
 
   tasks:
-    - name: Create Standard VLANs
-      cisco.ios.ios_vlans:
-        config:
-          - name: User_VLAN
-            vlan_id: 50
-          - name: Server_VLAN
-            vlan_id: 60
-          - name: Mgmt_VLAN
-            vlan_id: 100
-        state: merged
-        
-    - name: Save Config
+    - name: Create VLAN 50 (User)
+      cisco.ios.ios_config:
+        lines:
+          - name User_VLAN
+        parents: vlan 50
+
+    - name: Create VLAN 60 (Server)
+      cisco.ios.ios_config:
+        lines:
+          - name Server_VLAN
+        parents: vlan 60
+
+    - name: Create VLAN 100 (Mgmt)
+      cisco.ios.ios_config:
+        lines:
+          - name Mgmt_VLAN
+        parents: vlan 100
+
+    - name: Save Configuration
       cisco.ios.ios_command:
         commands: write memory
