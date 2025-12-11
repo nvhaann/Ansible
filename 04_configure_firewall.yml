@@ -49,6 +49,7 @@
         action: accept
         track: log
         state: present
+        ignore_errors: yes
 
     # 4. TẠO ACCESS RULE: CHO PHÉP RA INTERNET (ALLOW ALL)
     - name: Rule - Allow Internet Access
@@ -63,6 +64,7 @@
         action: accept
         track: none
         state: present
+        ignore_errors: yes
 
     # 5. PUBLISH CHANGES (Lưu cấu hình vào Database)
     # Bước này bắt buộc, nếu không làm thì rule không hiện lên
