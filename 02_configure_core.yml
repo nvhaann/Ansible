@@ -3,15 +3,27 @@
   hosts: switch_core
   gather_facts: no
   connection: network_cli
+  
+  # Tăng thời gian chờ lên 3 phút để tránh lỗi Timeout
+  vars:
+    ansible_command_timeout: 180
 
   tasks:
-    # 1. BẬT TÍNH NĂNG ROUTING
+    # [FIX] Dùng ios_config để bật Routing thay vì ios_system
     - name: Enable IP Routing
-      cisco.ios.ios_system:
-        ip_routing: yes
+      cisco.ios.ios_config:
+        lines:
+          - ip routing
+
+    # 1. TẠO VLAN 999 (TRANSIT VLAN RA FIREWALL)
+    - name: Create Transit VLAN 999
+      cisco.ios.ios_config:
+        lines:
+          - name Uplink_FW
+        parents: vlan 999
 
     # 2. CẤU HÌNH CỔNG UPLINK (e0/0 -> Access VLAN 999)
-    - name: Configure Uplink Port to Firewall
+    - name: Configure Uplink Port
       cisco.ios.ios_l2_interfaces:
         config:
           - name: Ethernet0/0
@@ -19,7 +31,7 @@
             access: { vlan: 999 }
         state: merged
 
-    # 3. CẤU HÌNH CỔNG DOWNLINK (Trunk xuống 3 nhánh Access)
+    # 3. CẤU HÌNH CỔNG DOWNLINK (Trunk)
     - name: Configure Downlink Trunks
       cisco.ios.ios_l2_interfaces:
         config:
@@ -38,7 +50,7 @@
     - name: Configure SVI IPs
       cisco.ios.ios_l3_interfaces:
         config:
-          - name: Vlan999   # IP Uplink nối FW
+          - name: Vlan999   # IP Uplink
             ipv4: [{ address: 172.16.1.2/30 }]
           - name: Vlan50    # Gateway User
             ipv4: [{ address: 192.168.50.1/24 }]
@@ -48,7 +60,7 @@
             ipv4: [{ address: 192.168.100.1/24 }]
         state: merged
 
-    # 5. ĐỊNH TUYẾN RA FIREWALL
+    # 5. ĐỊNH TUYẾN
     - name: Set Default Route
       cisco.ios.ios_static_routes:
         config:
@@ -56,6 +68,7 @@
             next_hops: [{ forward_router_address: 172.16.1.1 }]
         state: merged
 
-    - name: Save Config
-      cisco.ios.ios_command:
-        commands: write memory
+    # [FIX] Tạm ẩn lưu cấu hình để chạy nhanh hơn (Bỏ comment nếu muốn lưu thật)
+    # - name: Save Config
+    #   cisco.ios.ios_command:
+    #     commands: write memory
