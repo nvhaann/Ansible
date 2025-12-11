@@ -1,5 +1,5 @@
 ---
-- name: LAYER 3 - Configure Core Switch
+- name: LAYER 3 - Configure Core Switch (IOL L2 Mode)
   hosts: switch_core
   gather_facts: no
   connection: network_cli
@@ -10,50 +10,41 @@
       cisco.ios.ios_system:
         ip_routing: yes
 
-    # 2. CẤU HÌNH CỔNG UPLINK (LAYER 3 - Nối Firewall)
-    - name: Configure Uplink e0/0
-      cisco.ios.ios_l3_interfaces:
+    # 2. CẤU HÌNH CỔNG UPLINK (e0/0 -> Access VLAN 999)
+    - name: Configure Uplink Port to Firewall
+      cisco.ios.ios_l2_interfaces:
         config:
           - name: Ethernet0/0
-            ipv4:
-              - address: 172.16.1.2/30
+            mode: access
+            access: { vlan: 999 }
         state: merged
 
-    # 3. CẤU HÌNH CỔNG DOWNLINK (TRUNK - Nối xuống 3 nhánh Access)
+    # 3. CẤU HÌNH CỔNG DOWNLINK (Trunk xuống 3 nhánh Access)
     - name: Configure Downlink Trunks
       cisco.ios.ios_l2_interfaces:
         config:
-          # Nối xuống Switch Mgmt (Switch 3)
           - name: Ethernet0/1
             mode: trunk
-            trunk:
-              allowed_vlans: 100
-              native_vlan: 1
-          
-          # Nối xuống Switch User (Switch 4)
+            trunk: { allowed_vlans: 100, native_vlan: 1 }
           - name: Ethernet0/2
             mode: trunk
-            trunk:
-              allowed_vlans: 50,100
-              native_vlan: 1
-          
-          # Nối xuống Switch Server (Switch 5)
+            trunk: { allowed_vlans: 50,100, native_vlan: 1 }
           - name: Ethernet0/3
             mode: trunk
-            trunk:
-              allowed_vlans: 60,100
-              native_vlan: 1
+            trunk: { allowed_vlans: 60,100, native_vlan: 1 }
         state: merged
 
-    # 4. CẤU HÌNH SVI (GATEWAY CHO CÁC VLAN)
-    - name: Configure SVI Gateways
+    # 4. CẤU HÌNH IP GATEWAY (SVI)
+    - name: Configure SVI IPs
       cisco.ios.ios_l3_interfaces:
         config:
-          - name: Vlan50
+          - name: Vlan999   # IP Uplink nối FW
+            ipv4: [{ address: 172.16.1.2/30 }]
+          - name: Vlan50    # Gateway User
             ipv4: [{ address: 192.168.50.1/24 }]
-          - name: Vlan60
+          - name: Vlan60    # Gateway Server
             ipv4: [{ address: 192.168.60.1/24 }]
-          - name: Vlan100
+          - name: Vlan100   # Gateway Mgmt
             ipv4: [{ address: 192.168.100.1/24 }]
         state: merged
 
@@ -64,7 +55,7 @@
           - dest: 0.0.0.0/0
             next_hops: [{ forward_router_address: 172.16.1.1 }]
         state: merged
-        
+
     - name: Save Config
       cisco.ios.ios_command:
         commands: write memory
