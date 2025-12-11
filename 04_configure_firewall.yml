@@ -1,0 +1,77 @@
+---
+- name: SECURITY - Configure Check Point Policies
+  hosts: firewalls
+  connection: httpapi
+  gather_facts: no
+
+  vars:
+    gateway_name: "CP-Gateway" 
+    policy_package: "Standard"
+
+  tasks:
+    # 1. TẠO NETWORK OBJECT (Định nghĩa các lớp mạng)
+    - name: Create Network Object - VLAN 50 (Users)
+      check_point.mgmt.cp_mgmt_network:
+        name: "Net_VLAN50"
+        subnet: "192.168.50.0"
+        mask_length: 24
+        color: "blue"
+        state: present
+
+    - name: Create Network Object - VLAN 60 (Servers)
+      check_point.mgmt.cp_mgmt_network:
+        name: "Net_VLAN60"
+        subnet: "192.168.60.0"
+        mask_length: 24
+        color: "red"
+        state: present
+
+    # 2. TẠO HOST OBJECT (Định nghĩa Web Server)
+    - name: Create Host Object - Web Server
+      check_point.mgmt.cp_mgmt_host:
+        name: "Host_WebServer"
+        ip_address: "192.168.60.100"
+        color: "orange"
+        state: present
+
+    # 3. TẠO ACCESS RULE: CHO PHÉP USER -> WEB SERVER
+    - name: Rule - Allow User to Web Intranet
+      check_point.mgmt.cp_mgmt_access_rule:
+        layer: "Network"
+        name: "Ansible_Allow_Web"
+        position: top
+        source: "Net_VLAN50"
+        destination: "Host_WebServer"
+        service:
+          - http
+          - https
+          - icmp-proto
+        action: accept
+        track: log
+        state: present
+
+    # 4. TẠO ACCESS RULE: CHO PHÉP RA INTERNET (ALLOW ALL)
+    - name: Rule - Allow Internet Access
+      check_point.mgmt.cp_mgmt_access_rule:
+        layer: "Network"
+        name: "Ansible_Allow_Internet"
+        source:
+          - "Net_VLAN50"
+          - "Net_VLAN60"
+        destination: "Any"
+        service: "Any"
+        action: accept
+        track: none
+        state: present
+
+    # 5. PUBLISH CHANGES (Lưu cấu hình vào Database)
+    # Bước này bắt buộc, nếu không làm thì rule không hiện lên
+    - name: Publish changes
+      check_point.mgmt.cp_mgmt_publish:
+
+    # 6. INSTALL POLICY (Áp dụng cấu hình xuống thiết bị)
+    # Bước này giống như bấm nút "Install Policy" trong SmartConsole
+    - name: Install Policy
+      check_point.mgmt.cp_mgmt_install_policy:
+        policy_package: "{{ policy_package }}"
+        targets: "{{ gateway_name }}"
