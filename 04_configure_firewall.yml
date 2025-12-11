@@ -37,7 +37,7 @@
     # 3. TẠO ACCESS RULE: CHO PHÉP USER -> WEB SERVER
     - name: Rule - Allow User to Web Intranet
       check_point.mgmt.cp_mgmt_access_rule:
-        layer: "Network"
+        layer: "Standard"
         name: "Ansible_Allow_Web"
         position: top
         source: "Net_VLAN50"
@@ -53,7 +53,7 @@
     # 4. TẠO ACCESS RULE: CHO PHÉP RA INTERNET (ALLOW ALL)
     - name: Rule - Allow Internet Access
       check_point.mgmt.cp_mgmt_access_rule:
-        layer: "Network"
+        layer: "Standard"
         name: "Ansible_Allow_Internet"
         source:
           - "Net_VLAN50"
