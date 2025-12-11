@@ -10,3 +10,4 @@ collections:
   - name: community.windows
   - name: ansible.windows
   - name: chocolatey.chocolatey
+  - name: check_point.mgmt
