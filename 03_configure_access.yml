@@ -2,13 +2,13 @@
 # =========================================================
 # PLAY 1: CẤU HÌNH SWITCH 3 (MGMT - Chứa Ansible)
 # =========================================================
-- name: Configure Mgmt Switch
+- name: Configure Mgmt Switch (Access_Mgmt)
   hosts: switch_mgmt
   gather_facts: no
   connection: network_cli
 
   tasks:
-    - name: Uplink to Core (Trunk)
+    - name: Uplink to Core (Trunk VLAN 100)
       cisco.ios.ios_l2_interfaces:
         config:
           - name: Ethernet0/1
@@ -27,13 +27,13 @@
 # =========================================================
 # PLAY 2: CẤU HÌNH SWITCH 4 (USER - Chứa Windows 10)
 # =========================================================
-- name: Configure User Switch
-  hosts: switch_users
+- name: Configure User Switch (Access_Users)
+  hosts: switch_user
   gather_facts: no
   connection: network_cli
 
   tasks:
-    - name: Uplink to Core (Trunk)
+    - name: Uplink to Core (Trunk VLAN 50,100)
       cisco.ios.ios_l2_interfaces:
         config:
           - name: Ethernet0/0
@@ -52,13 +52,13 @@
 # =========================================================
 # PLAY 3: CẤU HÌNH SWITCH 5 (SERVER - Chứa Web, File, AD)
 # =========================================================
-- name: Configure Server Switch
+- name: Configure Server Switch (Access_Server)
   hosts: switch_server
   gather_facts: no
   connection: network_cli
 
   tasks:
-    - name: Uplink to Core (Trunk)
+    - name: Uplink to Core (Trunk VLAN 60,100)
       cisco.ios.ios_l2_interfaces:
         config:
           - name: Ethernet0/0
