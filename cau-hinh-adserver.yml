@@ -1,5 +1,5 @@
 ---
-- name: Configure AD & DNS (Compatible V3 - PowerShell Native)
+- name: Configure AD & DNS
   hosts: ad_server
   gather_facts: no
   vars:
