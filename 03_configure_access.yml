@@ -1,0 +1,88 @@
+---
+# =========================================================
+# PLAY 1: CẤU HÌNH SWITCH 3 (MGMT - Chứa Ansible)
+# =========================================================
+- name: Configure Mgmt Switch
+  hosts: switch_mgmt
+  gather_facts: no
+  connection: network_cli
+
+  tasks:
+    - name: Uplink to Core (Trunk)
+      cisco.ios.ios_l2_interfaces:
+        config:
+          - name: Ethernet0/1
+            mode: trunk
+            trunk: { allowed_vlans: 100, native_vlan: 1 }
+        state: merged
+
+    - name: Access Port for Ansible (VLAN 100)
+      cisco.ios.ios_l2_interfaces:
+        config:
+          - name: Ethernet0/0
+            mode: access
+            access: { vlan: 100 }
+        state: merged
+
+# =========================================================
+# PLAY 2: CẤU HÌNH SWITCH 4 (USER - Chứa Windows 10)
+# =========================================================
+- name: Configure User Switch
+  hosts: switch_users
+  gather_facts: no
+  connection: network_cli
+
+  tasks:
+    - name: Uplink to Core (Trunk)
+      cisco.ios.ios_l2_interfaces:
+        config:
+          - name: Ethernet0/0
+            mode: trunk
+            trunk: { allowed_vlans: 50,100, native_vlan: 1 }
+        state: merged
+
+    - name: Access Port for Windows 10 (VLAN 50)
+      cisco.ios.ios_l2_interfaces:
+        config:
+          - name: Ethernet0/1
+            mode: access
+            access: { vlan: 50 }
+        state: merged
+
+# =========================================================
+# PLAY 3: CẤU HÌNH SWITCH 5 (SERVER - Chứa Web, File, AD)
+# =========================================================
+- name: Configure Server Switch
+  hosts: switch_server
+  gather_facts: no
+  connection: network_cli
+
+  tasks:
+    - name: Uplink to Core (Trunk)
+      cisco.ios.ios_l2_interfaces:
+        config:
+          - name: Ethernet0/0
+            mode: trunk
+            trunk: { allowed_vlans: 60,100, native_vlan: 1 }
+        state: merged
+
+    - name: Access Ports for Servers (VLAN 60)
+      cisco.ios.ios_l2_interfaces:
+        config:
+          # File Server (e0/1)
+          - name: Ethernet0/1
+            mode: access
+            access: { vlan: 60 }
+          # AD Server (e0/2)
+          - name: Ethernet0/2
+            mode: access
+            access: { vlan: 60 }
+          # Web Server (e0/3)
+          - name: Ethernet0/3
+            mode: access
+            access: { vlan: 60 }
+        state: merged
+        
+    - name: Save Config All Access
+      cisco.ios.ios_command:
+        commands: write memory
