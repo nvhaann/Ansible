@@ -47,7 +47,8 @@
           - https
           - icmp-proto
         action: accept
-        track: log
+        track:
+          type: "Log"
         state: present
         ignore_errors: yes
 
@@ -62,7 +63,8 @@
         destination: "Any"
         service: "Any"
         action: accept
-        track: none
+        track:
+          type: "None"
         state: present
         ignore_errors: yes
 
