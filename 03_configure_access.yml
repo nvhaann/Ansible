@@ -13,7 +13,7 @@
         config:
           - name: Ethernet0/1
             mode: trunk
-            trunk: { allowed_vlans: 100, native_vlan: 1 }
+            trunk: { allowed_vlans: "100", native_vlan: "1" }
         state: merged
 
     - name: Access Port for Ansible (VLAN 100)
@@ -21,7 +21,7 @@
         config:
           - name: Ethernet0/0
             mode: access
-            access: { vlan: 100 }
+            access: { vlan: "100" }
         state: merged
 
 # =========================================================
@@ -38,7 +38,7 @@
         config:
           - name: Ethernet0/0
             mode: trunk
-            trunk: { allowed_vlans: 50,100, native_vlan: 1 }
+            trunk: { allowed_vlans: "50,100", native_vlan: "1" }
         state: merged
 
     - name: Access Port for Windows 10 (VLAN 50)
@@ -46,7 +46,7 @@
         config:
           - name: Ethernet0/1
             mode: access
-            access: { vlan: 50 }
+            access: { vlan: "50" }
         state: merged
 
 # =========================================================
@@ -63,7 +63,7 @@
         config:
           - name: Ethernet0/0
             mode: trunk
-            trunk: { allowed_vlans: 60,100, native_vlan: 1 }
+            trunk: { allowed_vlans: "60,100", native_vlan: "1" }
         state: merged
 
     - name: Access Ports for Servers (VLAN 60)
@@ -72,17 +72,17 @@
           # File Server (e0/1)
           - name: Ethernet0/1
             mode: access
-            access: { vlan: 60 }
+            access: { vlan: "60" }
           # AD Server (e0/2)
           - name: Ethernet0/2
             mode: access
-            access: { vlan: 60 }
+            access: { vlan: "60" }
           # Web Server (e0/3)
           - name: Ethernet0/3
             mode: access
-            access: { vlan: 60 }
+            access: { vlan: "60" }
         state: merged
         
-    - name: Save Config All Access
-      cisco.ios.ios_command:
-        commands: write memory
+   # - name: Save Config All Access
+    #  cisco.ios.ios_command:
+     #   commands: write memory
