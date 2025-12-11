@@ -32,6 +32,6 @@
           - name Uplink_FW
         parents: vlan 999
 
-    - name: Save Configuration
-      cisco.ios.ios_command:
-        commands: write memory
+    #- name: Save Configuration
+     # cisco.ios.ios_command:
+      #  commands: write memory
