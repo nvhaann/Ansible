@@ -16,17 +16,17 @@
 
   tasks:
     # -------------------------------------------------------------
-    # 1. CẤU HÌNH MẠNG (Sửa lỗi 'next_hop' thành 'gateway')
+    # 1. CẤU HÌNH MẠNG
     # -------------------------------------------------------------
     - name: Ensure Default Gateway is Core Switch
       ansible.windows.win_route:
         destination: 0.0.0.0/0
-        gateway: "{{ gateway_ip }}"  # <-- Đã sửa 'next_hop' thành 'gateway'
+        gateway: "{{ gateway_ip }}"
         metric: 1
         state: present
 
     # -------------------------------------------------------------
-    # 2. CẤU HÌNH DNS FORWARDER (PowerShell)
+    # 2. CẤU HÌNH DNS FORWARDER
     # -------------------------------------------------------------
     - name: Configure DNS Forwarders (Google 8.8.8.8)
       ansible.windows.win_shell: |
@@ -48,7 +48,7 @@
       loop: "{{ dns_records }}"
 
     # -------------------------------------------------------------
-    # 4. QUẢN LÝ CẤU TRÚC OU (Dùng PowerShell thuần - Không cần Collection)
+    # 4. QUẢN LÝ CẤU TRÚC OU
     # -------------------------------------------------------------
     - name: Ensure OUs exist (PowerShell)
       ansible.windows.win_shell: |
@@ -68,7 +68,7 @@
         - "Users"
 
     # -------------------------------------------------------------
-    # 5. QUẢN LÝ GROUP (PowerShell thuần)
+    # 5. QUẢN LÝ GROUP
     # -------------------------------------------------------------
     - name: Ensure Groups exist (PowerShell)
       ansible.windows.win_shell: |
@@ -87,7 +87,7 @@
         - "GG-Dept-Sale"
 
     # -------------------------------------------------------------
-    # 6. QUẢN LÝ USER SSO & SPN (PowerShell thuần)
+    # 6. QUẢN LÝ USER SSO & SPN
     # -------------------------------------------------------------
     - name: Ensure SSO Service Account exists & Configure SPN (PowerShell)
       ansible.windows.win_shell: |
