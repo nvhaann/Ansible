@@ -1,8 +1,11 @@
 ---
 collections:
   - name: cisco.ios
+    version: "4.6.0"
   - name: ansible.netcommon
+    version: "4.1.0"  
   - name: ansible.utils
+    version: "2.10.3"
   - name: microsoft.ad
   - name: community.windows
   - name: ansible.windows
