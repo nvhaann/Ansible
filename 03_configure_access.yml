@@ -28,7 +28,7 @@
 # PLAY 2: CẤU HÌNH SWITCH 4 (USER - Chứa Windows 10)
 # =========================================================
 - name: Configure User Switch (Access_Users)
-  hosts: switch_user
+  hosts: switch_users
   gather_facts: no
   connection: network_cli
 
