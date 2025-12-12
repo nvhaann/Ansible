@@ -19,6 +19,7 @@
         nat_settings:
           auto_rule: yes
           method: "hide"
+          hide_behind: "gateway"
         state: present
 
     - name: Create Network Object - VLAN 60 (Servers)
@@ -30,6 +31,7 @@
         nat_settings:
           auto_rule: yes
           method: "hide"
+          hide_behind: "gateway"
         state: present
 
     # 2. TẠO HOST OBJECT (Định nghĩa Web Server)
